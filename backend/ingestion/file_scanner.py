@@ -33,7 +33,7 @@ def scan_directory(repo_path: str) -> dict:
     for root, dirs, files in os.walk(repo_path):
         # Filter ignored directories in-place — they are never traversed
         dirs[:] = [d for d in dirs if d not in IGNORED_DIRECTORIES]
-
+        
         for file in files:
             # ── Hard timeout check (PRD §8: graceful cutoff at 25s) ──────────
             elapsed = time.time() - start_time
@@ -52,7 +52,8 @@ def scan_directory(repo_path: str) -> dict:
 
             if ext in ALLOWED_EXTENSIONS:
                 if len(files_to_parse) < MAX_PARSED_FILES:
-                    files_to_parse.append(os.path.join(root, file))
+                    abs_f = os.path.join(root, file)
+                    files_to_parse.append(abs_f)
                     supported += 1
                 else:
                     skipped += 1
