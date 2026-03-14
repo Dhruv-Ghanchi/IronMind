@@ -10,7 +10,6 @@ import ReactFlow, {
   Position,
 } from 'reactflow';
 import 'reactflow/dist/style.css';
-import dagre from 'dagre';
 import { FileNode } from './FileNode';
 
 const nodeTypes = {
@@ -32,85 +31,89 @@ const layerTitle = {
 };
 
 const layerColor: Record<string, string> = {
-  database: '#5361ff',
-  backend: '#a3b8ff',
-  api: '#10b981',
-  frontend: '#8b5cf6',
+  database: '#3b82f6', // Blue
+  backend: '#10b981',  // Green
+  api: '#f59e0b',      // Orange
+  frontend: '#8b5cf6', // Purple
 };
 
-const NODE_WIDTH = 220;
-const NODE_HEIGHT = 100;
 const LAYER_PADDING = 80;
 
-const getLayoutedElements = (nodes: Node[], edges: Edge[], direction = 'LR') => {
-  const isHorizontal = direction === 'LR';
-  
-  // FIX: Create new graph instance per call to avoid state accumulation leak
-  const dagreGraph = new dagre.graphlib.Graph({ compound: true });
-  dagreGraph.setGraph({ rankdir: direction, ranksep: 120, nodesep: 80 });
-  dagreGraph.setDefaultEdgeLabel(() => ({}));
-
-  // 1. Setup Dagre nodes and hierarchy
+const getLayoutedElements = (nodes: Node[], edges: Edge[]) => {
   const layers = ['database', 'backend', 'api', 'frontend'];
-  layers.forEach(ly => {
-    dagreGraph.setNode(`group_${ly}`, { label: ly, cluster: true });
-  });
+  const NODE_WIDTH = 220;
+  const NODE_HEIGHT = 80;
+  const HORIZONTAL_GAP = 120;
+  const SYMBOL_VERTICAL_GAP = 40;
+  const FILE_VERTICAL_GAP = 100;
+  const LAYER_VERTICAL_GAP = 300;
+  const COLS = 4;
 
-  nodes.forEach((node) => {
-    dagreGraph.setNode(node.id, { width: NODE_WIDTH, height: NODE_HEIGHT });
+  let currentY = 0;
+  const layoutedNodes: Node[] = [];
+
+  layers.forEach((ly) => {
+    const nodesInLayer = nodes.filter((n) => n.data?.layer === ly);
+    if (nodesInLayer.length === 0) return;
+
+    // 1. Identify Root Nodes (Files or Orphan Symbols)
+    // A node is a root if it has NO "CONTAINS" parent in the same layer
+    const rootNodes = nodesInLayer.filter(
+      (n) => !edges.find((e) => e.target === n.id && e.label === 'CONTAINS')
+    );
+
+    // 2. Arrange Roots in a Grid and children beneath them
+    const rowHeights: number[] = [];
     
-    // Check for parent file (Symbols inside Files)
-    const containsEdge = edges.find(e => e.target === node.id && e.label === 'CONTAINS');
-    if (containsEdge) {
-        dagreGraph.setParent(node.id, containsEdge.source);
-    } else if (node.data?.layer) {
-        // Otherwise, parent is the Layer group
-        dagreGraph.setParent(node.id, `group_${node.data.layer}`);
-    }
-  });
-
-  edges.forEach((edge) => {
-    if (edge.label !== 'CONTAINS') {
-        dagreGraph.setEdge(edge.source, edge.target);
-    }
-  });
-
-  dagre.layout(dagreGraph);
-
-  // 2. Map Positions and ParentIds
-  const layoutedNodes = nodes.map((node) => {
-    const nodeData = dagreGraph.node(node.id);
-    node.targetPosition = isHorizontal ? Position.Left : Position.Top;
-    node.sourcePosition = isHorizontal ? Position.Right : Position.Bottom;
-    
-    node.type = 'fileNode'; // FORCE custom node component
-    
-    node.position = {
-      x: nodeData.x - NODE_WIDTH / 2,
-      y: nodeData.y - NODE_HEIGHT / 2,
-    };
-
-    const containsEdge = edges.find(e => e.target === node.id && e.label === 'CONTAINS');
-    if (containsEdge) {
-        node.parentId = containsEdge.source;
-    } else if (node.data?.layer) {
-        node.parentId = `group_${node.data.layer}`;
-    }
-
-    return node;
-  });
-
-  // 3. Create Layer Group Nodes
-  const nodeMap = new Map(layoutedNodes.map(n => [n.id, n]));
-  
-  const layerGroups: Node[] = layers.map(ly => {
-    const lyNodes = layoutedNodes.filter(n => {
-        if (n.data?.layer === ly) return true;
-        if (!n.parentId) return false;
-        const parent = nodeMap.get(n.parentId);
-        return parent?.data?.layer === ly;
+    // First pass: Calculate row heights to avoid overlaps
+    rootNodes.forEach((root, i) => {
+      const row = Math.floor(i / COLS);
+      const children = nodesInLayer.filter(
+        (n) => edges.find((e) => e.source === root.id && e.target === n.id && e.label === 'CONTAINS')
+      );
+      const entryHeight = NODE_HEIGHT + children.length * SYMBOL_VERTICAL_GAP + FILE_VERTICAL_GAP;
+      rowHeights[row] = Math.max(rowHeights[row] || 0, entryHeight);
     });
-    
+
+    // Second pass: Set positions
+    rootNodes.forEach((root, i) => {
+      const col = i % COLS;
+      const row = Math.floor(i / COLS);
+      const prevRowsHeight = rowHeights.slice(0, row).reduce((sum, h) => sum + h, 0);
+
+      const x = col * (NODE_WIDTH + HORIZONTAL_GAP);
+      const y = currentY + prevRowsHeight;
+
+      root.position = { x, y };
+      root.type = 'fileNode';
+      root.targetPosition = Position.Top;
+      root.sourcePosition = Position.Bottom;
+      layoutedNodes.push(root);
+
+      // Arrange Children (Symbols) vertically below the root
+      const children = nodesInLayer.filter(
+        (n) => edges.find((e) => e.source === root.id && e.target === n.id && e.label === 'CONTAINS')
+      );
+
+      children.forEach((child, j) => {
+        child.position = { 
+          x: x + 30, // Slight indent
+          y: y + NODE_HEIGHT + j * SYMBOL_VERTICAL_GAP 
+        };
+        child.type = 'fileNode';
+        child.targetPosition = Position.Top;
+        child.sourcePosition = Position.Bottom;
+        layoutedNodes.push(child);
+      });
+    });
+
+    const layerHeight = rowHeights.reduce((sum, h) => sum + h, 0);
+    currentY += layerHeight + LAYER_VERTICAL_GAP;
+  });
+
+  // 3. Create Static Layer Group Backgrounds
+  const layerGroups: Node[] = layers.map(ly => {
+    const lyNodes = layoutedNodes.filter(n => n.data?.layer === ly);
     if (lyNodes.length === 0) return null;
 
     const minX = Math.min(...lyNodes.map(n => n.position.x)) - LAYER_PADDING;
@@ -118,41 +121,31 @@ const getLayoutedElements = (nodes: Node[], edges: Edge[], direction = 'LR') => 
     const maxX = Math.max(...lyNodes.map(n => n.position.x + NODE_WIDTH)) + LAYER_PADDING;
     const maxY = Math.max(...lyNodes.map(n => n.position.y + NODE_HEIGHT)) + LAYER_PADDING;
 
-    // Relative positioning (Recursive Fix)
-    lyNodes.filter(n => n.parentId === `group_${ly}`).forEach(file => {
-        file.position.x -= minX;
-        file.position.y -= minY;
-        
-        lyNodes.filter(sym => sym.parentId === file.id).forEach(sym => {
-            sym.position.x -= (file.position.x + minX);
-            sym.position.y -= (file.position.y + minY);
-        });
-    });
-
     return {
-      id: `group_${ly}`,
-      type: 'group',
+      id: `bg_group_${ly}`,
       data: { label: layerTitle[ly as keyof typeof layerTitle] },
       position: { x: minX, y: minY },
+      zIndex: -1,
+      draggable: false,
+      selectable: false,
       style: {
         width: maxX - minX,
         height: maxY - minY,
-        backgroundColor: `${layerColor[ly]}03`,
+        backgroundColor: `${layerColor[ly]}05`,
         borderRadius: '32px',
-        border: `1px dashed ${layerColor[ly]}20`,
+        border: `1px dashed ${layerColor[ly]}30`,
         pointerEvents: 'none',
-        zIndex: -1,
+        display: 'flex',
+        alignItems: 'flex-start',
+        padding: '24px',
+        color: layerColor[ly],
+        fontSize: '10px',
+        fontWeight: '900',
+        textTransform: 'uppercase',
+        letterSpacing: '0.2em',
       }
     };
   }).filter(Boolean) as Node[];
-
-  // 4. Manual Grid Layout Override (User Requested)
-  layoutedNodes.forEach((node, i) => {
-    node.position = {
-      x: (i % 4) * 250,
-      y: Math.floor(i / 4) * 150
-    };
-  });
 
   return { nodes: [...layerGroups, ...layoutedNodes], edges };
 };
