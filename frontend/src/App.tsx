@@ -8,8 +8,8 @@ import { DependencyGraph } from './graph/DependencyGraph';
 import GooeyNav from './components/GooeyNav';
 import ClickSpark from './components/ClickSpark';
 import GradientText from './components/GradientText';
-import { Search, Send, ShieldAlert, Layers } from 'lucide-react';
-import { uploadRepo, analyzeImpact, getGraph, queryNL } from './api/client';
+import { Search, ShieldAlert, Layers } from 'lucide-react';
+import { uploadRepo, analyzeImpact, getGraph, queryNL, suggestFix } from './api/client';
 import { ReactFlowProvider, type Node, type Edge } from 'reactflow';
 
 // Initial Mock Data for UI Testing
@@ -96,12 +96,25 @@ function App() {
   };
 
   const handleNodeClick = async (node: Node) => {
-    // Simulate impact analysis for demo if no real backend
     if (analysisId) {
-        const result = await analyzeImpact(analysisId, node.id);
-        setImpactedNodeIds(result.impacted_nodes || [node.id]);
+        setImpactedNodeIds([node.id]); // Visual feedback
+        setIsLoadingSuggestions(true);
+        try {
+            const impactResult = await analyzeImpact(analysisId, node.id);
+            setImpactedNodeIds(impactResult.impacted_nodes || [node.id]);
+            
+            const fixResult = await suggestFix(analysisId, node.id, "Impact Analysis");
+            const mappedFixes = fixResult.suggestions.map((s: string) => ({
+                target: node.data?.label || 'Target Node',
+                suggestion: s
+            }));
+            setSuggestions(mappedFixes);
+        } catch (error) {
+            console.error("Analysis failed", error);
+        } finally {
+            setIsLoadingSuggestions(false);
+        }
     } else {
-        // Local simulation for demo
         setImpactedNodeIds([node.id, '2', '3', '5']);
     }
   };
@@ -128,12 +141,6 @@ function App() {
     }
   };
 
-  const handleQueryKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      handleQuerySubmit();
-    }
-  };
 
   return (
     <ClickSpark sparkColor="#6366f1" sparkSize={10} sparkRadius={15} sparkCount={8} duration={400}>
@@ -174,7 +181,7 @@ function App() {
         </div>
       </nav>
 
-      <main className="max-w-[1600px] mx-auto p-6 space-y-8">
+      <main className="max-w-[1600px] mx-auto p-6 space-y-8 pb-32">
         {!isUploaded ? (
           <div className="max-w-3xl mx-auto pt-20">
             <div className="text-center mb-12 animate-fade-in">
@@ -203,64 +210,102 @@ function App() {
               edgesCount={edgesCount}
             />
 
-            <div className="grid grid-cols-12 gap-8 h-[700px]">
+            <div className="grid grid-cols-12 gap-8 min-h-[700px]">
               {/* Sidebar Panel */}
               <div className="col-span-12 lg:col-span-3 flex flex-col gap-6">
-                <div className="glass p-6 rounded-2xl flex-1 flex flex-col">
-                  <div className="flex items-center gap-3 mb-6 text-brand-500">
-                    <ShieldAlert className="w-6 h-6" />
-                    <h2 className="font-bold uppercase tracking-widest text-sm">Action Center</h2>
+                <div className="glass p-6 rounded-2xl flex-1 flex flex-col border border-white/10 relative overflow-hidden">
+                  {/* Decorative background pulse */}
+                  <div className="absolute -top-10 -right-10 w-32 h-32 bg-brand-500/10 blur-[60px] rounded-full animate-pulse" />
+                  
+                  <div className="flex items-center gap-3 mb-8 text-brand-400">
+                    <div className="p-2 rounded-lg bg-brand-500/10 border border-brand-500/20">
+                      <ShieldAlert className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h2 className="font-black uppercase tracking-[0.2em] text-[10px] text-slate-500">Security Node</h2>
+                      <h3 className="font-bold text-sm text-slate-100">Action Center</h3>
+                    </div>
                   </div>
-
-                  <div className="space-y-4 flex-1">
-                    <div className="p-4 rounded-xl bg-white/5 border border-white/5">
-                        <p className="text-xs text-slate-500 uppercase font-black mb-2">Simulate Change</p>
-                        <p className="text-sm text-slate-300 mb-4">Click any node in the graph to see propagation impact.</p>
-                        <div className="h-2 w-full bg-white/5 rounded-full overflow-hidden">
-                            <div className="h-full bg-brand-500 w-1/3" />
+ 
+                   <div className="space-y-6 flex-1">
+ 
+                     <div className="p-6 rounded-2xl bg-gradient-to-br from-brand-500/10 to-indigo-500/5 border border-brand-500/20 shadow-2xl shadow-brand-500/5">
+                        <div className="flex justify-between items-start mb-4">
+                          <div>
+                            <p className="text-[10px] text-slate-500 uppercase font-black tracking-widest mb-1">Threat Assessment</p>
+                            <div className="flex items-center gap-2">
+                              <span className={`text-3xl font-black tracking-tighter ${impactedNodeIds.length > 2 ? (impactedNodeIds.length > 10 ? 'text-red-500' : 'text-amber-500') : 'text-slate-500'}`}>
+                                {impactedNodeIds.length > 0 ? (Math.min(10, (impactedNodeIds.length * 0.5)).toFixed(1)) : '0.0'}
+                              </span>
+                              <span className="text-xs text-slate-600 font-bold">/ 10</span>
+                            </div>
+                          </div>
+                          <div className={`px-2 py-1 rounded-md text-[8px] font-black tracking-widest ${impactedNodeIds.length > 2 ? (impactedNodeIds.length > 10 ? 'bg-red-500/20 text-red-500 border border-red-500/30' : 'bg-amber-500/20 text-amber-500 border border-amber-500/30') : 'bg-slate-800 text-slate-500 border border-slate-700'}`}>
+                            {impactedNodeIds.length > 10 ? 'CRITICAL' : (impactedNodeIds.length > 2 ? 'ELEVATED' : 'STABLE')}
+                          </div>
                         </div>
-                    </div>
-
-                    <div className="p-4 rounded-xl bg-brand-500/10 border border-brand-500/20">
-                        <p className="text-xs text-brand-500 uppercase font-black mb-1">Risk Score</p>
-                        <p className="text-3xl font-black">{impactedNodeIds.length > 0 ? (impactedNodeIds.length > 5 ? '8.5' : '4.2') : '0.0'}</p>
-                        <p className="text-xs text-slate-400 mt-1">Severity: <span className="text-amber-500 font-bold">MEDIUM</span></p>
-                    </div>
-                  </div>
-
-                  <div className="mt-auto space-y-4">
-                    <div className="relative">
-                        <input
-                            value={queryInput}
-                            onChange={(e) => setQueryInput(e.target.value)}
-                            onKeyPress={handleQueryKeyPress}
-                            placeholder="Ask about dependencies..."
-                            className="w-full bg-white/5 border border-white/10 rounded-xl py-3 pl-11 pr-4 text-sm focus:border-brand-500/50 outline-none transition-all"
-                            disabled={!analysisId || isQueryLoading}
-                        />
-                        <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
-                        <button
-                          onClick={handleQuerySubmit}
-                          disabled={!queryInput.trim() || !analysisId || isQueryLoading}
-                          className={`absolute right-2 top-1/2 -translate-y-1/2 p-1.5 bg-brand-500 rounded-lg transition-opacity ${
-                            !queryInput.trim() || !analysisId || isQueryLoading ? 'opacity-50 cursor-not-allowed' : 'hover:bg-brand-600'
-                          }`}
-                        >
-                            <Send className="w-3.5 h-3.5" />
-                        </button>
-                    </div>
-                    {queryResult && (
-                      <div className="bg-white/5 border border-white/10 rounded-xl p-3 text-sm">
-                        <p className="text-brand-400 text-xs uppercase font-bold mb-1">Answer:</p>
-                        <p className="text-slate-300">{queryResult}</p>
-                      </div>
-                    )}
-                    <button onClick={() => setIsUploaded(false)} className="w-full py-2.5 text-xs font-bold uppercase tracking-widest text-slate-500 hover:text-white transition-colors">
-                        Re-upload Repo
-                    </button>
-                  </div>
-                </div>
+                        
+                        <div className="grid grid-cols-2 gap-4 mt-6">
+                          <div className="bg-black/20 p-3 rounded-xl border border-white/5">
+                            <p className="text-[9px] text-slate-500 font-black uppercase mb-1">Blast Radius</p>
+                            <p className="text-xl font-bold text-slate-200">{impactedNodeIds.length} <span className="text-[10px] text-slate-500 font-normal">nodes</span></p>
+                          </div>
+                          <div className="bg-black/20 p-3 rounded-xl border border-white/5">
+                            <p className="text-[9px] text-slate-500 font-black uppercase mb-1">System Health</p>
+                            <p className="text-[10px] font-bold text-emerald-500 uppercase flex items-center gap-1">
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" /> Live Sync
+                            </p>
+                          </div>
+                        </div>
+                     </div>
+                   </div>
+ 
+                   <div className="mt-8 space-y-4">
+                     <div className="relative group">
+                         <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none transition-colors group-focus-within:text-brand-500">
+                           <Search className="w-4 h-4 text-slate-500" />
+                         </div>                         <textarea
+                             value={queryInput}
+                             onChange={(e) => setQueryInput(e.target.value)}
+                             onKeyDown={(e) => {
+                               if (e.key === 'Enter' && !e.shiftKey) {
+                                 e.preventDefault();
+                                 handleQuerySubmit();
+                               }
+                             }}
+                             placeholder="Neural Search Dependency... (e.g. 'What happens if I remove index.html?')"
+                             className="w-full bg-white/5 border border-white/10 rounded-xl py-4 pl-12 pr-12 text-sm focus:border-brand-500/50 focus:bg-white/[0.08] outline-none transition-all placeholder:text-slate-600 resize-none h-32"
+                             disabled={!analysisId || isQueryLoading}
+                         />
+                         <button
+                           onClick={handleQuerySubmit}
+                           disabled={!queryInput.trim() || !analysisId || isQueryLoading}
+                           className={`absolute right-3 bottom-3 px-3 py-2 bg-brand-500 text-white text-[10px] font-black uppercase tracking-widest rounded-lg transition-all ${
+                             !queryInput.trim() || !analysisId || isQueryLoading ? 'opacity-30 grayscale cursor-not-allowed' : 'hover:bg-brand-600 hover:scale-105 active:scale-95 shadow-lg shadow-brand-500/20'
+                           }`}
+                         >
+                             Query
+                         </button>
+                     </div>
+                     {queryResult && (
+                       <div className="bg-brand-500/5 border border-brand-500/20 rounded-xl p-4 text-sm animate-in fade-in slide-in-from-top-2">
+                         <div className="flex items-center gap-2 mb-2">
+                            <div className="w-1 h-3 bg-brand-500 rounded-full" />
+                            <p className="text-brand-400 text-[10px] uppercase font-black tracking-widest">Intelligence Output</p>
+                         </div>
+                         <p className="text-slate-300 leading-relaxed text-xs">{queryResult}</p>
+                       </div>
+                     )}
+                     <button 
+                       onClick={() => setIsUploaded(false)} 
+                       className="w-full py-3 text-[10px] font-black uppercase tracking-[0.3em] text-slate-500 hover:text-white hover:bg-white/5 rounded-xl transition-all border border-transparent hover:border-white/5"
+                     >
+                         New Architecture
+                     </button>
+                   </div>
+                 </div>
               </div>
+
 
               {/* Graph Area */}
               <div className="col-span-12 lg:col-span-9 h-full">
@@ -276,7 +321,7 @@ function App() {
             </div>
 
             {/* Suggested Fixes Section */}
-            <div className="max-w-4xl mx-auto">
+            <div className="max-w-4xl mx-auto mt-16">
               <SuggestedFixes suggestions={suggestions} isLoading={isLoadingSuggestions} />
             </div>
           </div>
