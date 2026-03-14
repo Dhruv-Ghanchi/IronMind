@@ -7,10 +7,8 @@ interface GradientTextProps {
   className?: string;
   colors?: string[];
   animationSpeed?: number;
-  showBorder?: boolean;
-  direction?: 'horizontal' | 'vertical' | 'diagonal';
+  direction?: 'horizontal' | 'vertical';
   pauseOnHover?: boolean;
-  yoyo?: boolean;
 }
 
 export default function GradientText({
@@ -18,15 +16,14 @@ export default function GradientText({
   className = '',
   colors = ['#5227FF', '#FF9FFC', '#B19EEF'],
   animationSpeed = 8,
-  showBorder = false,
   direction = 'horizontal',
-  pauseOnHover = false,
-  yoyo = true
+  pauseOnHover = false
 }: GradientTextProps) {
   const [isPaused, setIsPaused] = useState(false);
   const progress = useMotionValue(0);
   const elapsedRef = useRef(0);
   const lastTimeRef = useRef<number | null>(null);
+  const spanRef = useRef<HTMLSpanElement>(null);
 
   const animationDuration = animationSpeed * 1000;
 
@@ -45,35 +42,31 @@ export default function GradientText({
     lastTimeRef.current = time;
     elapsedRef.current += deltaTime;
 
-    if (yoyo) {
-      const fullCycle = animationDuration * 2;
-      const cycleTime = elapsedRef.current % fullCycle;
+    const fullCycle = animationDuration * 2;
+    const cycleTime = elapsedRef.current % fullCycle;
 
-      if (cycleTime < animationDuration) {
-        progress.set((cycleTime / animationDuration) * 100);
-      } else {
-        progress.set(100 - ((cycleTime - animationDuration) / animationDuration) * 100);
-      }
+    if (cycleTime < animationDuration) {
+      progress.set((cycleTime / animationDuration) * 100);
     } else {
-      // Continuously increase position for seamless looping
-      progress.set((elapsedRef.current / animationDuration) * 100);
+      progress.set(100 - ((cycleTime - animationDuration) / animationDuration) * 100);
     }
   });
 
   useEffect(() => {
     elapsedRef.current = 0;
     progress.set(0);
-  }, [animationSpeed, progress, yoyo]);
+  }, [animationSpeed, progress]);
 
-  const backgroundPosition = useTransform(progress, (p) => {
-    if (direction === 'horizontal') {
-      return `${p}% 50%`;
-    } else if (direction === 'vertical') {
-      return `50% ${p}%`;
-    } else {
-      return `${p}% 50%`;
-    }
-  });
+  const backgroundPositionX = useTransform(progress, (p) => `${p}% 50%`);
+
+  useEffect(() => {
+    const unsubscribe = backgroundPositionX.onChange((value) => {
+      if (spanRef.current) {
+        spanRef.current.style.backgroundPosition = value;
+      }
+    });
+    return unsubscribe;
+  }, [backgroundPositionX]);
 
   const handleMouseEnter = useCallback(() => {
     if (pauseOnHover) setIsPaused(true);
@@ -83,29 +76,28 @@ export default function GradientText({
     if (pauseOnHover) setIsPaused(false);
   }, [pauseOnHover]);
 
-  const gradientAngle =
-    direction === 'horizontal' ? 'to right' : direction === 'vertical' ? 'to bottom' : 'to bottom right';
-
-  // Duplicate first color at the end for seamless looping
+  const gradientAngle = direction === 'horizontal' ? 'to right' : 'to bottom';
   const gradientColors = [...colors, colors[0]].join(', ');
 
   const gradientStyle = {
     backgroundImage: `linear-gradient(${gradientAngle}, ${gradientColors})`,
-    backgroundSize: direction === 'horizontal' ? '200% 100%' : direction === 'vertical' ? '100% 200%' : '200% 200%',
-    WebkitBackgroundClip: 'text',
-    backgroundClip: 'text',
+    backgroundSize: direction === 'horizontal' ? '200% 100%' : '100% 200%',
+    backgroundPosition: '0% 50%',
+    backgroundClip: 'text' as const,
+    WebkitBackgroundClip: 'text' as const,
     WebkitTextFillColor: 'transparent',
     color: 'transparent'
   };
 
   return (
-    <motion.span
+    <span
+      ref={spanRef}
       className={`animated-gradient-text ${className}`}
-      style={{ ...gradientStyle, backgroundPosition }}
+      style={gradientStyle}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
     >
       {children}
-    </motion.span>
+    </span>
   );
 }
