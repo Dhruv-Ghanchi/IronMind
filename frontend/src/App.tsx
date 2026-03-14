@@ -5,8 +5,11 @@ import { SuggestedFixes } from './components/SuggestedFixes';
 import { DocumentationModal } from './components/DocumentationModal';
 import { DebugPanel } from './components/DebugPanel';
 import { DependencyGraph } from './graph/DependencyGraph';
+import GooeyNav from './components/GooeyNav';
+import ClickSpark from './components/ClickSpark';
+import GradientText from './components/GradientText';
 import { Search, Send, ShieldAlert, Layers } from 'lucide-react';
-import { uploadRepo, analyzeImpact } from './api/client';
+import { uploadRepo, analyzeImpact, getGraph } from './api/client';
 import type { Node, Edge } from 'reactflow';
 
 // Initial Mock Data for UI Testing
@@ -48,23 +51,38 @@ function App() {
   const [isUploaded, setIsUploaded] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [analysisId, setAnalysisId] = useState<string | null>(null);
-  const [nodes] = useState<Node[]>(MOCK_NODES);
-  const [edges] = useState<Edge[]>(MOCK_EDGES);
+  const [nodes, setNodes] = useState<Node[]>(MOCK_NODES);
+  const [edges, setEdges] = useState<Edge[]>(MOCK_EDGES);
   const [impactedNodeIds, setImpactedNodeIds] = useState<string[]>([]);
   const [suggestions, setSuggestions] = useState<Array<{ target: string; suggestion: string }>>([]);
   const [isLoadingSuggestions, setIsLoadingSuggestions] = useState(false);
   const [isDocumentationOpen, setIsDocumentationOpen] = useState(false);
   const [isDebugMode, setIsDebugMode] = useState(false);
+  const [filesParsed, setFilesParsed] = useState(0);
+  const [filesSkipped, setFilesSkipped] = useState(0);
+  const [nodesCount, setNodesCount] = useState(0);
+  const [edgesCount, setEdgesCount] = useState(0);
 
   const handleUpload = async (file: File) => {
     setIsUploading(true);
     try {
-      const data = await uploadRepo(file);
-      setAnalysisId(data.analysis_id);
+      const uploadData = await uploadRepo(file);
+      const id = uploadData.analysis_id;
+      setAnalysisId(id);
+      setFilesParsed(uploadData.files_parsed || 0);
+      setFilesSkipped(uploadData.files_skipped || 0);
+
+      // Fetch the graph
+      const graphData = await getGraph(id);
+      if (graphData.nodes) setNodes(graphData.nodes);
+      if (graphData.edges) setEdges(graphData.edges);
+      setNodesCount(graphData.summary?.nodes || 0);
+      setEdgesCount(graphData.summary?.edges || 0);
+
       setIsUploaded(true);
-      // In a real app, we would then fetch the graph
     } catch (error) {
       console.error("Upload failed", error);
+      alert("Upload failed. Check console for errors.");
     } finally {
       setIsUploading(false);
     }
@@ -82,6 +100,7 @@ function App() {
   };
 
   return (
+    <ClickSpark sparkColor="#6366f1" sparkSize={10} sparkRadius={15} sparkCount={8} duration={400}>
     <div className="min-h-screen bg-dark-900 text-slate-100 font-inter selection:bg-brand-500/30">
       {/* Header */}
       <nav className="border-b border-white/5 bg-dark-800/50 backdrop-blur-xl sticky top-0 z-50">
@@ -92,22 +111,29 @@ function App() {
             </div>
             <span className="font-bold text-xl tracking-tight">Polyglot<span className="text-brand-500 font-black">Analyzer</span></span>
           </div>
-          
-          <div className="hidden md:flex items-center gap-6 text-sm font-medium text-slate-400">
-            <button onClick={() => setIsDocumentationOpen(true)} className="hover:text-white transition-colors">
-              Documentation
-            </button>
-            <div className="h-4 w-px bg-white/10" />
-            <button
-              onClick={() => setIsDebugMode(!isDebugMode)}
-              className={`px-4 py-1.5 rounded-full border transition-all ${
-                isDebugMode
-                  ? 'bg-red-500/20 border-red-500/50 text-red-400'
-                  : 'bg-white/5 hover:bg-white/10 border-white/10 text-white'
-              }`}
-            >
-              Dev Mode {isDebugMode && '✓'}
-            </button>
+
+          <div className="hidden md:flex">
+            <GooeyNav
+              items={[
+                {
+                  label: 'Documentation',
+                  onClick: () => setIsDocumentationOpen(true),
+                  type: 'button'
+                },
+                {
+                  label: `Dev Mode ${isDebugMode ? '✓' : ''}`,
+                  onClick: () => { if (isUploaded) setIsDebugMode(!isDebugMode); },
+                  type: 'button',
+                  isActive: isDebugMode,
+                  disabled: !isUploaded
+                }
+              ]}
+              particleCount={12}
+              particleDistances={[70, 10]}
+              particleR={80}
+              animationTime={500}
+              timeVariance={200}
+            />
           </div>
         </div>
       </nav>
@@ -118,7 +144,13 @@ function App() {
             <div className="text-center mb-12 animate-fade-in">
               <h1 className="text-5xl font-black mb-4 tracking-tight">
                 Trace Code Impact <br />
-                <span className="text-transparent bg-clip-text bg-gradient-to-r from-brand-400 to-indigo-400">Across Every Layer</span>
+                <GradientText
+                  colors={["#6366f1", "#ec4899", "#a855f7", "#3b82f6"]}
+                  animationSpeed={3}
+                  className="text-5xl font-black"
+                >
+                  Across Every Layer
+                </GradientText>
               </h1>
               <p className="text-slate-400 text-lg">
                 Upload your repository and visualize how changes propagate from SQL columns to React components.
@@ -128,11 +160,11 @@ function App() {
           </div>
         ) : (
           <div className="space-y-8 animate-fade-in">
-            <AnalysisSummary 
-              filesParsed={42} 
-              filesSkipped={12} 
-              nodesCount={28} 
-              edgesCount={24} 
+            <AnalysisSummary
+              filesParsed={filesParsed}
+              filesSkipped={filesSkipped}
+              nodesCount={nodesCount}
+              edgesCount={edgesCount}
             />
 
             <div className="grid grid-cols-12 gap-8 h-[700px]">
@@ -209,6 +241,7 @@ function App() {
       {/* Debug Panel */}
       {isUploaded && <DebugPanel isOpen={isDebugMode} debugData={MOCK_DEBUG_DATA} />}
     </div>
+    </ClickSpark>
   );
 }
 
