@@ -1,0 +1,81 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --brand-color: #5361ff;
+  --bg-dark: #0a0b10;
+  --bg-surface: #12141c;
+  --text-primary: #f8fafc;
+  --text-secondary: #94a3b8;
+}
+
+body {
+  margin: 0;
+  font-family: 'Inter', sans-serif;
+  background-color: var(--bg-dark);
+  color: var(--text-primary);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Custom Glassmorphism Utility */
+.glass {
+  background: rgba(255, 255, 255, 0.03);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+/* React Flow Customizations */
+.react-flow__node {
+  border-radius: 12px;
+  padding: 12px;
+  font-size: 12px;
+  box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: var(--bg-surface);
+  color: var(--text-primary);
+}
+
+.react-flow__node.selected {
+  border-color: var(--brand-color);
+  box-shadow: 0 0 0 2px var(--brand-color);
+}
+
+.react-flow__edge-path {
+  stroke: rgba(255, 255, 255, 0.2);
+  stroke-width: 2;
+}
+
+.react-flow__connection-path {
+  stroke: var(--brand-color);
+}
+
+.react-flow__controls {
+  background: var(--bg-surface);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+}
+
+.react-flow__controls-button {
+  background: transparent;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  fill: var(--text-primary);
+}
+
+.react-flow__background {
+  background-color: var(--bg-dark);
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.4s ease-out forwards;
+}
