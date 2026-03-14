@@ -10,6 +10,8 @@ from backend.ingestion.zip_handler import extract_zip, read_files_to_dict
 from backend.ingestion.file_scanner import scan_directory
 from neo4j import GraphDatabase
 from . import ai_service
+import json
+from pathlib import Path
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -527,6 +529,33 @@ async def debug_sessions():
         }
     }
 
+
+
+# ---------------------------------------------------------------------------
+# Endpoint 6 — Dynamic Docs (/api/docs)
+# ---------------------------------------------------------------------------
+@app.get("/api/docs")
+async def get_documentation():
+    """Serves the dynamic documentation JSON."""
+    doc_path = Path(__file__).parent.parent / "frontend" / "src" / "data" / "docs.json"
+    if not doc_path.exists():
+        # Fallback if docs.json is missing
+        return []
+    
+    with open(doc_path, "r") as f:
+        return json.load(f)
+
+# ---------------------------------------------------------------------------
+# Endpoint 7 — Global Config (/api/config)
+# ---------------------------------------------------------------------------
+@app.get("/api/config")
+async def get_config():
+    """Serves global system configuration."""
+    return {
+        "debug_mode_default": os.getenv("DEBUG_MODE_DEFAULT", "false").lower() == "true",
+        "featherless_api_status": "configured" if os.getenv("FEATHERLESS_API_KEY") else "missing",
+        "neo4j_status": "connected" if neo4j_driver else "disconnected"
+    }
 
 # ---------------------------------------------------------------------------
 # Endpoint 2 — Build graph  (POST /graph)   [basic implementation]

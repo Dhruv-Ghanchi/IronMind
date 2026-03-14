@@ -38,4 +38,14 @@ export const suggestFix = async (analysisId: string, nodeId: string, change: str
   return response.data;
 };
 
+export const fetchDocs = async () => {
+  const response = await api.get('/api/docs');
+  return response.data;
+};
+
+export const fetchConfig = async () => {
+  const response = await api.get('/api/config');
+  return response.data;
+};
+
 export default api;

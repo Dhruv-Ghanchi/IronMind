@@ -1,6 +1,5 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { UploadZone } from './components/UploadZone';
-import { AnalysisSummary } from './components/AnalysisSummary';
 import { SuggestedFixes } from './components/SuggestedFixes';
 import { DocumentationModal } from './components/DocumentationModal';
 import { DebugPanel } from './components/DebugPanel';
@@ -9,43 +8,20 @@ import GooeyNav from './components/GooeyNav';
 import ClickSpark from './components/ClickSpark';
 import GradientText from './components/GradientText';
 import { Search, ShieldAlert, Layers, Loader2, Sparkles } from 'lucide-react';
-import { uploadRepo, analyzeImpact, getGraph, queryNL, suggestFix } from './api/client';
+import { uploadRepo, analyzeImpact, getGraph, queryNL, suggestFix, fetchConfig } from './api/client';
 import { ReactFlowProvider, type Node, type Edge } from 'reactflow';
+import ErrorBoundary from './components/ErrorBoundary';
+
 
 // Initial Mock Data for UI Testing
-const MOCK_NODES: Node[] = [
-  { id: '1', position: { x: 0, y: 100 }, data: { label: 'users.email' }, style: { width: 150 }, type: 'input' },
-  { id: '2', position: { x: 250, y: 100 }, data: { label: 'auth_service.py' }, style: { width: 150 } },
-  { id: '3', position: { x: 500, y: 50 }, data: { label: 'GET /login' }, style: { width: 120 } },
-  { id: '4', position: { x: 500, y: 150 }, data: { label: 'POST /token' }, style: { width: 120 } },
-  { id: '5', position: { x: 750, y: 100 }, data: { label: 'LoginPage.tsx' }, style: { width: 150 }, type: 'output' },
-];
+const MOCK_NODES: Node[] = [];
+const MOCK_EDGES: Edge[] = [];
 
-const MOCK_EDGES: Edge[] = [
-  { id: 'e1-2', source: '1', target: '2', label: 'ref' },
-  { id: 'e2-3', source: '2', target: '3' },
-  { id: 'e2-4', source: '2', target: '4' },
-  { id: 'e3-5', source: '3', target: '5' },
-  { id: 'e4-5', source: '4', target: '5' },
-];
-
-// Mock Debug Data
-const MOCK_DEBUG_DATA = {
-  filesScanned: 54,
-  filesParsed: 42,
-  filesSkipped: 12,
-  parseFailures: 2,
-  nodesCreated: 28,
-  edgesCreated: 24,
-  analysisTime: 18.4,
-  extractionLogs: [
-    '[SQL] Extracted 3 tables, 15 columns from schema.sql',
-    '[Python] Found 8 routes, 12 imports in auth_service.py',
-    '[TypeScript] Parsed 5 components, 7 API calls from LoginPage.tsx',
-    '[Graph] Built 28 nodes across 4 layers',
-    '[Impact] Calculated risk scores for all nodes',
-  ],
-};
+interface SystemConfig {
+  debug_mode_default: boolean;
+  featherless_api_status: string;
+  neo4j_status: string;
+}
 
 function App() {
   const [isUploaded, setIsUploaded] = useState(false);
@@ -57,38 +33,62 @@ function App() {
   const [suggestions, setSuggestions] = useState<Array<{ target: string; suggestion: string }>>([]);
   const [isLoadingSuggestions, setIsLoadingSuggestions] = useState(false);
   const [isDocumentationOpen, setIsDocumentationOpen] = useState(false);
-  const [isDebugMode, setIsDebugMode] = useState(false);
+  const [isDebugMode, setIsDebugMode] = useState(() => {
+    return localStorage.getItem('isDebugMode') === 'true';
+  });
+  const [systemConfig, setSystemConfig] = useState<SystemConfig | null>(null);
+
+  useEffect(() => {
+    fetchConfig()
+      .then((config) => {
+        setSystemConfig(config);
+        if (!localStorage.getItem('isDebugMode')) {
+          setIsDebugMode(config.debug_mode_default);
+        }
+      })
+      .catch((err) => {
+        console.error("Failed to fetch system config", err);
+      });
+  }, []);
+
+
+  /* Statistics used by the Debug Dashboard */
   const [filesParsed, setFilesParsed] = useState(0);
   const [filesSkipped, setFilesSkipped] = useState(0);
-  const [nodesCount, setNodesCount] = useState(0);
-  const [edgesCount, setEdgesCount] = useState(0);
   const [queryInput, setQueryInput] = useState('');
   const [queryResult, setQueryResult] = useState<string | null>(null);
   const [isQueryLoading, setIsQueryLoading] = useState(false);
+  const [pipelineLogs, setPipelineLogs] = useState<string[]>([]);
+  const [lastImpactResult, setLastImpactResult] = useState<{ node_id: string; impacted_nodes: string[]; risk_score: number; severity: 'LOW' | 'MEDIUM' | 'HIGH' } | null>(null);
+
+  const addPipelineLog = (message: string) => {
+    setPipelineLogs((prev: string[]) => [...prev, `[${new Date().toLocaleTimeString()}] ${message}`]);
+  };
 
   const handleUpload = async (file: File) => {
     setIsUploading(true);
+    setPipelineLogs([]);
+    addPipelineLog('ZIP uploaded successfully');
     try {
       const uploadData = await uploadRepo(file);
       const id = uploadData.analysis_id;
       setAnalysisId(id);
       setFilesParsed(uploadData.files_parsed || 0);
       setFilesSkipped(uploadData.files_skipped || 0);
+      addPipelineLog(`Files ingested: ${uploadData.files_parsed} parsed, ${uploadData.files_skipped} skipped`);
 
       // Fetch the graph
       const graphData = await getGraph(id);
-      console.log('Raw graph data:', graphData); // Debug log
       if (graphData.nodes) {
-        console.log('Setting nodes:', graphData.nodes.length); // Debug log
         setNodes(graphData.nodes);
       }
       if (graphData.edges) setEdges(graphData.edges);
-      setNodesCount(graphData.summary?.nodes || 0);
-      setEdgesCount(graphData.summary?.edges || 0);
+      addPipelineLog(`Graph built: ${graphData.summary?.nodes || 0} nodes, ${graphData.summary?.edges || 0} edges`);
 
       setIsUploaded(true);
     } catch (error) {
       console.error("Upload failed", error);
+      addPipelineLog('❌ Upload failed - See console for details');
       alert("Upload failed. Check console for errors.");
     } finally {
       setIsUploading(false);
@@ -99,9 +99,18 @@ function App() {
     if (analysisId) {
         setImpactedNodeIds([node.id]); // Visual feedback
         setIsLoadingSuggestions(true);
+        addPipelineLog(`Impact analysis run on: ${node.id}`);
         try {
             const impactResult = await analyzeImpact(analysisId, node.id);
             setImpactedNodeIds(impactResult.impacted_nodes || [node.id]);
+            
+            // Store impact result for debug panel
+            setLastImpactResult({
+              node_id: node.id,
+              impacted_nodes: impactResult.impacted_nodes || [],
+              risk_score: impactResult.risk_score || 0,
+              severity: (impactResult.severity || 'LOW') as 'LOW' | 'MEDIUM' | 'HIGH'
+            });
             
             const fixResult = await suggestFix(analysisId, node.id, "Impact Analysis");
             const mappedFixes = fixResult.suggestions.map((s: string) => ({
@@ -109,8 +118,10 @@ function App() {
                 suggestion: s
             }));
             setSuggestions(mappedFixes);
+            addPipelineLog(`Found ${impactResult.impacted_nodes?.length || 1} impacted nodes (severity: ${impactResult.severity || 'LOW'})`);
         } catch (error) {
             console.error("Analysis failed", error);
+            addPipelineLog('❌ Impact analysis failed');
         } finally {
             setIsLoadingSuggestions(false);
         }
@@ -143,8 +154,11 @@ function App() {
 
 
   return (
+    <ErrorBoundary>
     <ClickSpark sparkColor="#6366f1" sparkSize={10} sparkRadius={15} sparkCount={8} duration={400}>
     <div className="min-h-screen bg-dark-900 text-slate-100 font-inter selection:bg-brand-500/30">
+
+
       {/* Header */}
       <nav className="border-b border-white/5 bg-dark-800/50 backdrop-blur-xl sticky top-0 z-50">
         <div className="max-w-[1600px] mx-auto px-6 h-16 flex items-center justify-between">
@@ -165,11 +179,18 @@ function App() {
                 },
                 {
                   label: `Dev Mode ${isDebugMode ? '✓' : ''}`,
-                  onClick: () => { if (isUploaded) setIsDebugMode(!isDebugMode); },
+                  onClick: () => { 
+                    if (isUploaded) {
+                      const newMode = !isDebugMode;
+                      setIsDebugMode(newMode);
+                      localStorage.setItem('isDebugMode', String(newMode));
+                    } 
+                  },
                   type: 'button',
                   isActive: isDebugMode,
                   disabled: !isUploaded
                 }
+
               ]}
               particleCount={12}
               particleDistances={[70, 10]}
@@ -203,12 +224,7 @@ function App() {
           </div>
         ) : (
           <div className="space-y-8 animate-fade-in">
-            <AnalysisSummary
-              filesParsed={filesParsed}
-              filesSkipped={filesSkipped}
-              nodesCount={nodesCount}
-              edgesCount={edgesCount}
-            />
+            {/* Data summary is now handled by the Debug Dashboard */}
             <div className="space-y-8">
               {/* Full Width Graph Area */}
               <div className="w-full h-[600px] glass rounded-3xl overflow-hidden border border-white/10">
@@ -359,10 +375,25 @@ function App() {
       <DocumentationModal isOpen={isDocumentationOpen} onClose={() => setIsDocumentationOpen(false)} />
 
       {/* Debug Panel */}
-      {isUploaded && <DebugPanel isOpen={isDebugMode} debugData={MOCK_DEBUG_DATA} />}
+      {isUploaded && (
+        <DebugPanel
+          isOpen={isDebugMode}
+          analysisId={analysisId}
+          filesParsed={filesParsed}
+          filesSkipped={filesSkipped}
+          nodes={nodes}
+          edges={edges}
+          lastImpactResult={lastImpactResult || undefined}
+          pipelineLogs={pipelineLogs}
+          systemConfig={systemConfig}
+        />
+      )}
     </div>
     </ClickSpark>
+    </ErrorBoundary>
   );
 }
+
+
 
 export default App;
