@@ -10,6 +10,10 @@ from typing import Optional
 from backend.ingestion.zip_handler import extract_zip, read_files_to_dict
 from backend.ingestion.file_scanner import scan_directory
 from neo4j import GraphDatabase
+from . import ai_service
+from dotenv import load_dotenv
+
+load_dotenv()
 
 app = FastAPI()
 
@@ -44,6 +48,8 @@ try:
 except Exception as e:
     print(f"WARNING: Could not connect to Neo4j. Impact analysis will be degraded: {e}")
     neo4j_driver = None
+
+# AI / Featherless AI Configuration handled via ai_service.py
 
 # ---------------------------------------------------------------------------
 # In-memory session store
@@ -91,26 +97,44 @@ def parse_code_symbols(code_map: dict):
     symbol_edges = []
     
     # Regex patterns
-    CLASS_PATTERN = re.compile(r'(?:class|export\s+class)\s+([a-zA-Z0-9_]+)')
+    CLASS_PATTERN = re.compile(r'(?:class|export\s+class)\s+([a-zA-Z0-9_]+)(?:\(([^)]+)\))?')
     FUNC_PATTERN = re.compile(r'(?:def|async\s+def|function)\s+([a-zA-Z0-9_]+)')
     ENDPOINT_PATTERN = re.compile(r'@app\.(?:get|post|put|delete|patch)\s*\(\s*["\']([^"\']+)["\']')
-    # HTML IDs and JS Constants/Variables for Vanilla JS
     HTML_ID_PATTERN = re.compile(r'id=["\']([^"\']+)["\']')
     JS_CONST_PATTERN = re.compile(r'(?:const|let|var)\s+([a-zA-Z0-9_]+)\s*=')
 
+    # SQL/DB Markers
+    DB_KEYWORDS = ['SELECT', 'INSERT', 'UPDATE', 'DELETE', 'CREATE TABLE', 'DROP TABLE', 'execute(', 'run(', 'commit(']
+
     for file_path, content in code_map.items():
         norm_path = file_path.replace('\\', '/')
+        lines = content.split('\n')
         
         # 1. Classes
         for match in CLASS_PATTERN.finditer(content):
             name = match.group(1)
+            bases = match.group(2) or ""
+            start_pos = match.start()
+            start_line = content[:start_pos].count('\n')
+            
+            # Simple line count heuristic: find next class or def or end of file
+            remaining = content[match.end():]
+            next_sym = re.search(r'\n(class|def|async\s+def|export|function|@app)', remaining)
+            block = remaining[:next_sym.start()] if next_sym else remaining
+            line_count = block.count('\n') + 1
+
             symbol_id = f"{norm_path}::class::{name}"
+            kind = "class"
+            if "BaseModel" in bases:
+                kind = "pydantic_model"
+
             symbols.append({
                 "id": symbol_id,
                 "label": name,
                 "type": "symbol",
-                "kind": "class",
-                "file": norm_path
+                "kind": kind,
+                "file": norm_path,
+                "lines": line_count
             })
             symbol_edges.append({"source": norm_path, "target": symbol_id, "type": "CONTAINS"})
 
@@ -118,13 +142,36 @@ def parse_code_symbols(code_map: dict):
         for match in FUNC_PATTERN.finditer(content):
             name = match.group(1)
             if name in ['main', 'app', 'function']: continue
+            start_pos = match.start()
+            start_line = content[:start_pos].count('\n')
+
+            # Find decorator context (API detection)
+            context_before = content[max(0, start_pos-200):start_pos]
+            # Rule: API if has @app.get/post etc or router.
+            is_api = any(k in context_before for k in ["@app.get", "@app.post", "@app.put", "@app.delete", "router."])
+            
+            # Find SQL usage (DB detection)
+            remaining = content[match.end():]
+            next_sym = re.search(r'\n(class|def|async\s+def|export|function|@app)', remaining)
+            block = remaining[:next_sym.start()] if next_sym else remaining
+            line_count = block.count('\n') + 1
+            
+            # Rule: DATABASE if has SELECT/INSERT/CREATE or conn.execute or session.run
+            is_db = any(kw.lower() in block.lower() for kw in ["select", "insert", "create table", "conn.execute", "session.run"])
+
             symbol_id = f"{norm_path}::func::{name}"
+            kind = "function"
+            if is_api: kind = "api_route"
+            elif is_db: kind = "db_function"
+            # Rule: BACKEND is default for functions not API/DB in backend files
+
             symbols.append({
                 "id": symbol_id,
                 "label": name,
                 "type": "symbol",
-                "kind": "function",
-                "file": norm_path
+                "kind": kind,
+                "file": norm_path,
+                "lines": line_count
             })
             symbol_edges.append({"source": norm_path, "target": symbol_id, "type": "CONTAINS"})
 
@@ -138,7 +185,8 @@ def parse_code_symbols(code_map: dict):
                     "label": f"#{name}",
                     "type": "symbol",
                     "kind": "element",
-                    "file": norm_path
+                    "file": norm_path,
+                    "lines": 1
                 })
                 symbol_edges.append({"source": norm_path, "target": symbol_id, "type": "CONTAINS"})
 
@@ -152,7 +200,8 @@ def parse_code_symbols(code_map: dict):
                     "label": name,
                     "type": "symbol",
                     "kind": "constant",
-                    "file": norm_path
+                    "file": norm_path,
+                    "lines": 1
                 })
                 symbol_edges.append({"source": norm_path, "target": symbol_id, "type": "CONTAINS"})
 
@@ -226,33 +275,47 @@ async def upload_repository(
             normalized_path = file_path.replace('\\', '/')
             ext = os.path.splitext(normalized_path)[1].lower()
             
-            # Smart Layer Assignment
+            # Multi-Layer Detection (Rule 2 & 3)
             content_lower = content.lower()
-            layer = "backend" 
+            detected_layers = []
             
-            # Rule 1: API Layer (FastAPI takes precedence over DB)
-            if 'from fastapi' in content_lower or 'import fastapi' in content_lower or '@app.' in content_lower:
-                layer = "api"
-            # Rule 2: Database Layer
-            elif 'create table' in content_lower or 'sqlite3' in content_lower or ext == '.db' or ext == '.sql':
-                layer = "database"
-            # Rule 3: Frontend Layer
-            elif ext == '.html' and '<script' in content_lower:
-                layer = "frontend"
-            elif ext in {'.py', '.js', '.ts', '.jsx', '.tsx', '.sql', '.html', '.db', '.css', '.json', '.md', '.txt'}:
-                # If it's JS/TS but not in API/DB, and not explicitly backend-named, it's frontend
-                if not any(k in normalized_path.lower() for k in ["backend", "server", "api"]):
-                    layer = "frontend"
-                else:
-                    layer = "backend"
+            # 1. DATABASE
+            if any(k in content_lower for k in ["create table", "sqlite3", "sqlalchemy"]) or ext in [".sql", ".db"]:
+                detected_layers.append("database")
             
-            # Default directory-based overrides
-            if "frontend" in normalized_path.lower(): layer = "frontend"
-            elif "api" in normalized_path.lower(): layer = "api"
-            elif "database" in normalized_path.lower() or "db" in normalized_path.lower(): 
-                if layer != "api": layer = "database"
+            # 2. BACKEND
+            if any(k in content_lower for k in ["from fastapi", "import flask", "import django", "@app.route", "@app.get"]):
+                detected_layers.append("backend")
             
-            log_debug(f"Assigning {normalized_path} to layer: {layer}")
+            # 3. API
+            if any(k in content_lower for k in ["@app.get", "@app.post", "@app.put", "@app.delete", "router."]):
+                detected_layers.append("api")
+            
+            # 4. FRONTEND
+            is_in_frontend_src = "frontend/src" in normalized_path.lower()
+            if ext in [".html", ".jsx", ".tsx", ".vue", ".css"] or (ext == ".js" and is_in_frontend_src):
+                detected_layers.append("frontend")
+            
+            # Fallback for main.py (Rule: main.py is both BACKEND and API potentially, but forced here if missed)
+            if normalized_path.endswith("main.py"):
+                if "backend" not in detected_layers: detected_layers.append("backend")
+                if "api" in content_lower and "api" not in detected_layers: detected_layers.append("api")
+
+            # Final check: If no layer detected, default to backend or directory name
+            if not detected_layers:
+                if "frontend" in normalized_path.lower(): detected_layers.append("frontend")
+                elif "api" in normalized_path.lower(): detected_layers.append("api")
+                elif "database" in normalized_path.lower() or "db" in normalized_path.lower(): detected_layers.append("database")
+                else: detected_layers.append("backend")
+
+            # Pick primary layer for layout (DATABASE > BACKEND > API > FRONTEND)
+            primary_layer = "backend"
+            for p in ["database", "backend", "api", "frontend"]:
+                if p in detected_layers:
+                    primary_layer = p
+                    break
+
+            log_debug(f"FILE FOUND: {normalized_path} | LAYERS: {', '.join(detected_layers)} | PRIMARY: {primary_layer}")
             
             nodes.append({
                 "id": normalized_path,
@@ -261,8 +324,9 @@ async def upload_repository(
                 "data": {
                     "label": normalized_path.split('/')[-1],
                     "fullPath": normalized_path,
-                    "nodeClass": "database" if layer == "database" else "code",
-                    "layer": layer,
+                    "nodeClass": "code",
+                    "layer": primary_layer,
+                    "all_layers": detected_layers,
                     "lines": len(content.split('\n'))
                 }
             })
@@ -271,6 +335,14 @@ async def upload_repository(
         for s in symbols:
             # Shift symbols slightly to the right of their files
             parent_file = [n for n in nodes if n["id"] == s["file"]][0]
+            
+            # Map symbol kind to layer
+            s_layer = parent_file["data"]["layer"]
+            if s["kind"] == "api_route": s_layer = "api"
+            elif s["kind"] == "db_function": s_layer = "database"
+            elif s["kind"] == "pydantic_model": s_layer = "backend"
+            elif s["kind"] == "element": s_layer = "frontend"
+
             nodes.append({
                 "id": s["id"],
                 "type": "fileNode",
@@ -279,8 +351,8 @@ async def upload_repository(
                     "label": s["label"],
                     "fullPath": s["id"],
                     "nodeClass": s["kind"],
-                    "layer": parent_file["data"]["layer"],
-                    "lines": 0
+                    "layer": s_layer,
+                    "lines": s.get("lines", 0)
                 }
             })
 
@@ -429,7 +501,7 @@ async def upload_repository(
 
         return {
             "analysis_id": analysis_id,
-            "files_parsed": scan_results["supported"],
+            "files_parsed": len(code_map),
             "files_skipped": scan_results["skipped"],
             "message": "Deep Analysis complete"
         }
@@ -643,14 +715,14 @@ async def natural_language_query(body: QueryRequest):
             if db_files:
                 answer_parts.append(f"Database logic seems to be in: {', '.join([f.split('/')[-1] for f in db_files[:3]])}.")
 
-    if not answer_parts:
-        if matched_nodes:
-            answer_parts.append(f"I found {len(matched_nodes)} relevant files. Check them out in the graph!")
-        else:
-            answer_parts.append("I've searched the code and graph but couldn't find a direct answer. Try asking about specific keywords or dependencies.")
+    # Neural Search using ai_service
+    graph_context = f"Matched files: {', '.join(matched_nodes[:10])}. Files analyzed: {len(code_map)}."
+    ai_answer = ai_service.answer_query(body.question, graph_context)
+    if ai_answer:
+        answer_parts.insert(0, f"🤖 ARCHITECT BRAIN:\n{ai_answer}")
 
     return {
-        "answer": " ".join(answer_parts),
+        "answer": "\n\n".join(answer_parts) if answer_parts else "I found some relevant files. Check them out in the graph!",
         "matched_nodes": matched_nodes[:15]
     }
 
@@ -684,22 +756,41 @@ async def suggest_fixes(body: SuggestFixRequest):
 
     # 1. Structural / Layer Suggestions
     if blast_radius > 10:
-        suggestions.append(f"⚠️ HIGH RISK: '{node_name}' is a central hub. Consider decoupling into smaller sub-modules to reduce blast radius.")
+        suggestions.append(f"⚠️ HIGH RISK:\n{node_name} is a central hub. Consider decoupling into smaller sub-modules to reduce blast radius.")
     
     if node_layer == "database":
-        suggestions.append(f"🛠️ DB OPTIMIZATION: Ensure '{node_name}' has appropriate indexing to handle cross-layer queries from {blast_radius} dependent nodes.")
-        suggestions.append("🔍 INTEGRITY: Verify that foreign key constraints reflect the relationships shown in the dependency graph.")
+        suggestions.append(f"🛠️ DB OPTIMIZATION:\nEnsure '{node_name}' has appropriate indexing to handle cross-layer queries from {blast_radius} dependent nodes.")
+        suggestions.append("🔍 INTEGRITY:\nVerify that foreign key constraints reflect the relationships shown in the dependency graph.")
     
     elif node_class == "route":
-        suggestions.append(f"🌐 API DESIGN: Add request throttling to '{node_name}' as it exposes your system to multiple entry points.")
-        suggestions.append("🛡️ SECURITY: Implement strict JWT or Session validation before processing logic for this endpoint.")
+        suggestions.append(f"🌐 API DESIGN:\nAdd request throttling to '{node_name}' as it exposes your system to multiple entry points.")
+        suggestions.append("🛡️ SECURITY:\nImplement strict JWT or Session validation before processing logic for this endpoint.")
 
     elif node_class == "function":
-        suggestions.append(f"⚡ COMPOSITION: This function affects {blast_radius} nodes. Consider using the 'Strategy Pattern' to make the logic more modular.")
-        suggestions.append("🧪 TESTING: Since this is a core logic node, ensure unit tests cover at least 90% of its internal branches.")
+        suggestions.append(f"⚡ COMPOSITION:\nThis function affects {blast_radius} nodes. Consider using the 'Strategy Pattern' to make the logic more modular.")
+        suggestions.append("🧪 TESTING:\nSince this is a core logic node, ensure unit tests cover at least 90% of its internal branches.")
 
     else:
-        suggestions.append(f"📦 REFACTORING: Review '{node_name}' for circular dependencies. It currently sits in a chain of {blast_radius} connected objects.")
+        suggestions.append(f"📦 REFACTORING:\nReview '{node_name}' for circular dependencies. It currently sits in a chain of {blast_radius} connected objects.")
+
+    # AI-Powered Architectural Explanations and Patches (ai_service)
+    affected_files = impact_res.get("impacted_nodes", [])
+    
+    # 1. Impact Explanation
+    explanation = ai_service.explain_impact(node_name, affected_files)
+    if explanation:
+        suggestions.append(f"🔍 ARCHITECT IMPACT:\n{explanation}")
+
+    # 2. Suggested Patches
+    intent = f"Refactor or fix {node_name} considering it affects {len(affected_files)} components."
+    # Pass first 1-2 lines of content for context
+    file_path = target_node["id"]
+    content_snippet = session_data["code_map"].get(file_path, "Content not available")[:500]
+    
+    patches = ai_service.generate_patches(intent, content_snippet, affected_files)
+    if patches:
+        for p in patches[:1]: # Limit to 1 patch for readability in suggestions for now
+            suggestions.append(f"🛠️ SUGGESTED PATCH in {p.get('file_path')}:\n\nReplace: '{p.get('original')[:50]}...' with '{p.get('replacement')[:50]}...'\nReason: {p.get('reason')}")
 
     return {
         "suggestions": suggestions

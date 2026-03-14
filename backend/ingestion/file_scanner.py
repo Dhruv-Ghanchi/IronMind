@@ -3,16 +3,21 @@ import time
 
 ALLOWED_EXTENSIONS = {'.py', '.js', '.ts', '.jsx', '.tsx', '.sql', '.html', '.db', '.css', '.json', '.md', '.txt'}
 IGNORED_DIRECTORIES = {'node_modules', 'dist', 'build', 'venv', '.git', '__pycache__', '.next', 'coverage', 'out'}
-MAX_SCANNED_FILES = 10000
-MAX_PARSED_FILES = 5000
-SCAN_TIMEOUT_SECONDS = 25   # PRD §8 — graceful cutoff at 25s
+MAX_SCANNED_FILES = 1000000
+MAX_PARSED_FILES = 500000
+SCAN_TIMEOUT_SECONDS = 120  # Increased timeout for large repos
+   # PRD §8 — graceful cutoff at 25s
 SCAN_WARN_SECONDS = 20      # PRD §8 — target analysis time < 20s
 
 DEBUG_LOG_PATH = "debug_log.txt"
 
 def log_debug(msg: str):
-    with open(DEBUG_LOG_PATH, "a") as f:
-        f.write(f"SCANNER: {msg}\n")
+    """Writes to a local debug file and console for audit/tracing."""
+    timestamp = time.strftime("%H:%M:%S")
+    formatted = f"[{timestamp}] {msg}"
+    print(formatted)
+    with open(DEBUG_LOG_PATH, "a", encoding="utf-8") as f:
+        f.write(formatted + "\n")
 
 
 def scan_directory(repo_path: str) -> dict:
@@ -63,18 +68,15 @@ def scan_directory(repo_path: str) -> dict:
             _, ext = os.path.splitext(file)
             ext = ext.lower()
 
-            if ext in ALLOWED_EXTENSIONS:
-                if len(files_to_parse) < MAX_PARSED_FILES:
-                    abs_f = os.path.join(root, file)
-                    files_to_parse.append(abs_f)
-                    supported += 1
-                    log_debug(f"ACCEPTED: {file} (ext: {ext})")
-                else:
-                    skipped += 1
-                    log_debug(f"LIMIT SKIPPED: {file} (Max parsed reached)")
+            # ACCEPT ALL FILES (No extension filter for discovery)
+            if len(files_to_parse) < MAX_PARSED_FILES:
+                abs_f = os.path.join(root, file)
+                files_to_parse.append(abs_f)
+                supported += 1
+                log_debug(f"ACCEPTED: {file} (Path: {abs_f})")
             else:
                 skipped += 1
-                log_debug(f"EXTENSION SKIPPED: {file} (ext: '{ext}' not in ALLOWED)")
+                log_debug(f"LIMIT SKIPPED: {file} (Max parsed reached)")
 
         if timed_out:
             break  # exit outer os.walk loop cleanly
