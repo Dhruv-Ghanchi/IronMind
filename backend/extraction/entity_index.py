@@ -1,7 +1,7 @@
 import os
-from extraction.sql_extractor import extract_sql_entities
-from extraction.python_extractor import extract_python_entities
-from extraction.js_extractor import extract_js_entities
+from .sql_extractor import extract_sql_entities
+from .python_extractor import extract_python_entities
+from .js_extractor import extract_js_entities
 
 def build_entity_index(files: dict[str, str]) -> dict:
     """

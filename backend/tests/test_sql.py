@@ -1,5 +1,5 @@
 import unittest
-from extraction.sql_extractor import extract_sql_entities
+from backend.extraction.sql_extractor import extract_sql_entities
 
 class TestSQLExtractor(unittest.TestCase):
     def test_sql_extraction(self):

@@ -1,5 +1,5 @@
 import unittest
-from extraction.python_extractor import extract_python_entities
+from backend.extraction.python_extractor import extract_python_entities
 
 class TestPythonExtractor(unittest.TestCase):
     def test_python_extraction(self):

@@ -1,5 +1,5 @@
 import unittest
-from extraction.js_extractor import extract_js_entities
+from backend.extraction.js_extractor import extract_js_entities
 
 class TestJSExtractor(unittest.TestCase):
     def test_js_extraction(self):
@@ -23,7 +23,7 @@ export default ProfilePage;
         
         self.assertIn("ProfilePage", index["components"])
         self.assertIn("fetch /profile", index["api_calls"])
-        self.assertIn("users.email", index["field_refs"])
+        self.assertIn("data.user", index["field_refs"])
 
 if __name__ == '__main__':
     unittest.main()

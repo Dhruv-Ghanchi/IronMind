@@ -1,7 +1,7 @@
 import unittest
 import os
 import json
-from extraction.entity_index import build_entity_index
+from backend.extraction.entity_index import build_entity_index
 
 class TestDemoChainIntegration(unittest.TestCase):
     def test_demo_repo_extraction(self):

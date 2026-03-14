@@ -54,8 +54,8 @@ function App() {
   const [nodes, setNodes] = useState<Node[]>(MOCK_NODES);
   const [edges, setEdges] = useState<Edge[]>(MOCK_EDGES);
   const [impactedNodeIds, setImpactedNodeIds] = useState<string[]>([]);
-  const [suggestions, setSuggestions] = useState<Array<{ target: string; suggestion: string }>>([]);
-  const [isLoadingSuggestions, setIsLoadingSuggestions] = useState(false);
+  const [suggestions] = useState<Array<{ target: string; suggestion: string }>>([]);
+  const [isLoadingSuggestions] = useState(false);
   const [isDocumentationOpen, setIsDocumentationOpen] = useState(false);
   const [isDebugMode, setIsDebugMode] = useState(false);
   const [filesParsed, setFilesParsed] = useState(0);
