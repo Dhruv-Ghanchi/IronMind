@@ -5,6 +5,7 @@ import shutil
 import tempfile
 import os
 import uuid
+import re
 from typing import Optional
 from backend.ingestion.zip_handler import extract_zip, read_files_to_dict
 from backend.ingestion.file_scanner import scan_directory
@@ -113,6 +114,7 @@ async def upload_repo(
             }
         }
 
+
         # 7. Build standard response (IMPLEMENTATION_PLAN.md Endpoint 1 contract)
         response = {
             "analysis_id": analysis_id,
@@ -147,17 +149,120 @@ async def upload_repo(
 
 
 # ---------------------------------------------------------------------------
-# Endpoint 2 — Build graph  (POST /graph)   [skeleton for Dev 3]
+# Debug endpoint to check session store
+# ---------------------------------------------------------------------------
+@app.get("/debug/sessions")
+async def debug_sessions():
+    """Debug endpoint to see what's in session store"""
+    return {
+        "session_count": len(SESSION_STORE),
+        "session_ids": list(SESSION_STORE.keys()),
+        "sessions": {
+            session_id: {
+                "files_count": len(data.get("code_map", {})),
+                "files": list(data.get("code_map", {}).keys())[:10],  # First 10 file names
+                "scan_summary": data.get("scan_summary", {})
+            }
+            for session_id, data in SESSION_STORE.items()
+        }
+    }
+
+
+# ---------------------------------------------------------------------------
+# Endpoint 2 — Build graph  (POST /graph)   [basic implementation]
 # ---------------------------------------------------------------------------
 @app.post("/graph")
 async def build_graph(body: GraphRequest):
-    """Skeleton. Dev 3 owns full implementation."""
+    """Structured graph building from uploaded code."""
     if body.analysis_id not in SESSION_STORE:
         raise HTTPException(status_code=404, detail="analysis_id not found. Upload a repo first.")
+
+    session_data = SESSION_STORE[body.analysis_id]
+    code_map = session_data["code_map"]
+
+    nodes = []
+    edges = []
+
+    # Create a node for each file
+    for file_path, content in code_map.items():
+        normalized_path = file_path.replace('\\', '/')
+        # Determine layer and base X position
+        layer = "backend"
+        base_x = 600
+        if "frontend" in normalized_path.lower():
+            layer = "frontend"
+            base_x = 1800
+        elif "backend" in normalized_path.lower():
+            layer = "backend"
+            base_x = 600
+        elif "api" in normalized_path.lower():
+            layer = "api"
+            base_x = 1200
+        elif file_path.endswith('.sql'):
+            layer = "database"
+            base_x = 0
+            
+        node_class = "code"
+        if file_path.endswith('.sql'):
+            node_class = "database"
+        elif file_path.endswith(('.yml', '.yaml', '.json', '.env')):
+            node_class = "config"
+
+        # Calculate Grid Position within Layer (2 columns to keep it compact but readable)
+        layer_nodes_count = len([n for n in nodes if n["data"].get("layer") == layer])
+        col = layer_nodes_count % 2
+        row = layer_nodes_count // 2
+        
+        x = base_x + (col * 350)
+        y = row * 180
+
+        nodes.append({
+            "id": normalized_path,
+            "type": "fileNode",
+            "position": {"x": x, "y": y},
+            "data": {
+                "label": normalized_path.split('/')[-1],
+                "fullPath": normalized_path,
+                "nodeClass": node_class,
+                "layer": layer,
+                "lines": len(content.split('\n'))
+            }
+        })
+
+    # Simple dependency detection
+    import re
+    for source_file, source_content in code_map.items():
+        norm_source = source_file.replace('\\', '/')
+        for target_file in code_map.keys():
+            if source_file != target_file:
+                norm_target = target_file.replace('\\', '/')
+                target_basename = norm_target.split('/')[-1]
+                target_name = target_basename.split('.')[0]
+
+                patterns = [
+                    rf'import.*{re.escape(target_name)}',
+                    rf'from.*{re.escape(target_name)}',
+                    rf'require.*{re.escape(target_name)}',
+                    rf'import.*{re.escape(target_basename)}',
+                ]
+
+                for pattern in patterns:
+                    if re.search(pattern, source_content, re.IGNORECASE):
+                        edges.append({
+                            "id": f"{norm_source}->{norm_target}",
+                            "source": norm_source,
+                            "target": norm_target,
+                            "type": "smoothstep",
+                            "animated": True,
+                            "style": {"stroke": "#475569", "strokeWidth": 2}
+                        })
+                        break
+
+    print(f"DEBUG: Generated {len(nodes)} nodes and {len(edges)} edges")
     return {
-        "nodes": [],
-        "edges": [],
-        "summary": {"nodes": 0, "edges": 0}
+        "nodes": nodes,
+        "edges": edges,
+        "summary": {"nodes": len(nodes), "edges": len(edges)}
     }
 
 
@@ -179,16 +284,63 @@ async def impact_analysis(body: ImpactRequest):
 
 
 # ---------------------------------------------------------------------------
-# Endpoint 4 — NL query  (POST /query)  [skeleton for Dev 2/3]
+# Endpoint 4 — NL query  (POST /query)  [basic implementation]
 # ---------------------------------------------------------------------------
 @app.post("/query")
 async def natural_language_query(body: QueryRequest):
-    """Skeleton. Dev 2 + Dev 3 own full implementation."""
+    """Smarter query handling with content-aware search."""
     if body.analysis_id not in SESSION_STORE:
         raise HTTPException(status_code=404, detail="analysis_id not found. Upload a repo first.")
+
+    session_data = SESSION_STORE[body.analysis_id]
+    code_map = session_data["code_map"]
+    question = body.question.lower()
+
+    matched_nodes = []
+    answer_parts = []
+    
+    # 1. Direct File Name Matching
+    for file_path in code_map.keys():
+        basename = file_path.split('/')[-1].lower()
+        if basename in question or (len(basename.split('.')) > 1 and basename.split('.')[0] in question):
+            matched_nodes.append(file_path)
+            
+    # 2. Keyword/Content Search
+    keywords = [word for word in question.split() if len(word) > 3]
+    content_matches = []
+    for file_path, content in code_map.items():
+        if any(kw in content.lower() for kw in keywords):
+            if file_path not in matched_nodes:
+                content_matches.append(file_path)
+    
+    # Prioritize direct matches, then content matches
+    matched_nodes.extend(content_matches[:5])
+    
+    # 3. Heuristic Logic for answering
+    if "auth" in question or "login" in question or "user" in question:
+        auth_files = [f for f in matched_nodes if any(k in f.lower() for k in ["auth", "login", "user", "session"])]
+        if auth_files:
+            answer_parts.append(f"I found {len(auth_files)} files related to authentication: {', '.join([f.split('/')[-1] for f in auth_files[:3]])}.")
+        else:
+            answer_parts.append("I couldn't find explicit authentication logic, but you might want to check the API or Backend layers.")
+            
+    if "database" in question or "db" in question or "sql" in question:
+        db_files = [f for f in matched_nodes if f.endswith('.sql') or "db" in f.lower() or "schema" in f.lower()]
+        if db_files:
+            answer_parts.append(f"Database logic seems to be in: {', '.join([f.split('/')[-1] for f in db_files[:3]])}.")
+
+    if "how many" in question or "count" in question:
+        answer_parts.append(f"This repository has {len(code_map)} files total.")
+
+    if not answer_parts:
+        if matched_nodes:
+            answer_parts.append(f"I found {len(matched_nodes)} relevant files: {', '.join([f.split('/')[-1] for f in matched_nodes[:5]])}. Check them out in the graph!")
+        else:
+            answer_parts.append("I've searched the code but couldn't find a direct answer. Try asking about specific keywords, file types, or layers.")
+
     return {
-        "answer": "",
-        "matched_nodes": []
+        "answer": " ".join(answer_parts),
+        "matched_nodes": matched_nodes[:15] # Don't overwhelm the UI
     }
 
 

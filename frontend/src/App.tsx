@@ -9,8 +9,8 @@ import GooeyNav from './components/GooeyNav';
 import ClickSpark from './components/ClickSpark';
 import GradientText from './components/GradientText';
 import { Search, Send, ShieldAlert, Layers } from 'lucide-react';
-import { uploadRepo, analyzeImpact, getGraph } from './api/client';
-import type { Node, Edge } from 'reactflow';
+import { uploadRepo, analyzeImpact, getGraph, queryNL } from './api/client';
+import { ReactFlowProvider, type Node, type Edge } from 'reactflow';
 
 // Initial Mock Data for UI Testing
 const MOCK_NODES: Node[] = [
@@ -62,6 +62,9 @@ function App() {
   const [filesSkipped, setFilesSkipped] = useState(0);
   const [nodesCount, setNodesCount] = useState(0);
   const [edgesCount, setEdgesCount] = useState(0);
+  const [queryInput, setQueryInput] = useState('');
+  const [queryResult, setQueryResult] = useState<string | null>(null);
+  const [isQueryLoading, setIsQueryLoading] = useState(false);
 
   const handleUpload = async (file: File) => {
     setIsUploading(true);
@@ -74,7 +77,11 @@ function App() {
 
       // Fetch the graph
       const graphData = await getGraph(id);
-      if (graphData.nodes) setNodes(graphData.nodes);
+      console.log('Raw graph data:', graphData); // Debug log
+      if (graphData.nodes) {
+        console.log('Setting nodes:', graphData.nodes.length); // Debug log
+        setNodes(graphData.nodes);
+      }
       if (graphData.edges) setEdges(graphData.edges);
       setNodesCount(graphData.summary?.nodes || 0);
       setEdgesCount(graphData.summary?.edges || 0);
@@ -95,7 +102,36 @@ function App() {
         setImpactedNodeIds(result.impacted_nodes || [node.id]);
     } else {
         // Local simulation for demo
-        setImpactedNodeIds([node.id, '2', '3', '5']); 
+        setImpactedNodeIds([node.id, '2', '3', '5']);
+    }
+  };
+
+  const handleQuerySubmit = async () => {
+    if (!queryInput.trim() || !analysisId) return;
+
+    setIsQueryLoading(true);
+    const question = queryInput.trim();
+    setQueryInput(''); // Clear input immediately
+
+    try {
+      const result = await queryNL(analysisId, question);
+      setQueryResult(result.answer);
+      // Optionally highlight matched nodes
+      if (result.matched_nodes && result.matched_nodes.length > 0) {
+        setImpactedNodeIds(result.matched_nodes);
+      }
+    } catch (error) {
+      console.error('Query failed:', error);
+      setQueryResult('Sorry, I encountered an error processing your question.');
+    } finally {
+      setIsQueryLoading(false);
+    }
+  };
+
+  const handleQueryKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      handleQuerySubmit();
     }
   };
 
@@ -195,14 +231,30 @@ function App() {
                   <div className="mt-auto space-y-4">
                     <div className="relative">
                         <input
+                            value={queryInput}
+                            onChange={(e) => setQueryInput(e.target.value)}
+                            onKeyPress={handleQueryKeyPress}
                             placeholder="Ask about dependencies..."
                             className="w-full bg-white/5 border border-white/10 rounded-xl py-3 pl-11 pr-4 text-sm focus:border-brand-500/50 outline-none transition-all"
+                            disabled={!analysisId || isQueryLoading}
                         />
                         <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
-                        <button className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 bg-brand-500 rounded-lg">
+                        <button
+                          onClick={handleQuerySubmit}
+                          disabled={!queryInput.trim() || !analysisId || isQueryLoading}
+                          className={`absolute right-2 top-1/2 -translate-y-1/2 p-1.5 bg-brand-500 rounded-lg transition-opacity ${
+                            !queryInput.trim() || !analysisId || isQueryLoading ? 'opacity-50 cursor-not-allowed' : 'hover:bg-brand-600'
+                          }`}
+                        >
                             <Send className="w-3.5 h-3.5" />
                         </button>
                     </div>
+                    {queryResult && (
+                      <div className="bg-white/5 border border-white/10 rounded-xl p-3 text-sm">
+                        <p className="text-brand-400 text-xs uppercase font-bold mb-1">Answer:</p>
+                        <p className="text-slate-300">{queryResult}</p>
+                      </div>
+                    )}
                     <button onClick={() => setIsUploaded(false)} className="w-full py-2.5 text-xs font-bold uppercase tracking-widest text-slate-500 hover:text-white transition-colors">
                         Re-upload Repo
                     </button>
@@ -212,12 +264,14 @@ function App() {
 
               {/* Graph Area */}
               <div className="col-span-12 lg:col-span-9 h-full">
-                <DependencyGraph
-                  nodes={nodes}
-                  edges={edges}
-                  onNodeClick={handleNodeClick}
-                  impactedNodeIds={impactedNodeIds}
-                />
+                <ReactFlowProvider>
+                  <DependencyGraph
+                    nodes={nodes}
+                    edges={edges}
+                    onNodeClick={handleNodeClick}
+                    impactedNodeIds={impactedNodeIds}
+                  />
+                </ReactFlowProvider>
               </div>
             </div>
 

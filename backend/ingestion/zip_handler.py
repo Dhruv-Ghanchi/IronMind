@@ -60,10 +60,8 @@ def read_files_to_dict(repo_path: str, files_to_parse: list[str]) -> dict[str, s
                 content = future.result(timeout=FILE_READ_TIMEOUT_SECONDS)
                 code_map[rel_path] = content
             except FutureTimeoutError:
-                # File took > 2s to read — skip gracefully (PRD §8)
                 pass
             except OSError:
-                # File unreadable — skip gracefully, never crash
                 pass
 
     # Clean up the entire extracted temp directory now that we hold the content

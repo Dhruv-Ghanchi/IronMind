@@ -1,13 +1,19 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useEffect } from 'react';
 import ReactFlow, { 
   Background, 
   Controls, 
   Panel,
+  useReactFlow,
   type Node,
   type Edge,
   MarkerType,
 } from 'reactflow';
 import 'reactflow/dist/style.css';
+import { FileNode } from './FileNode';
+
+const nodeTypes = {
+  fileNode: FileNode,
+};
 
 interface DependencyGraphProps {
   nodes: Node[];
@@ -36,6 +42,8 @@ export const DependencyGraph: React.FC<DependencyGraphProps> = ({
   onNodeClick,
   impactedNodeIds,
 }) => {
+  const { fitView } = useReactFlow();
+
   const styledNodes = useMemo(() => {
     return nodes.map((node) => ({
       ...node,
@@ -43,42 +51,49 @@ export const DependencyGraph: React.FC<DependencyGraphProps> = ({
         ...node.data,
         isImpacted: impactedNodeIds.includes(node.id),
       },
-      style: {
-        ...node.style,
-        opacity: impactedNodeIds.length > 0 && !impactedNodeIds.includes(node.id) ? 0.3 : 1,
-        transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
-        border: impactedNodeIds.includes(node.id) ? '2px solid #ef4444' : node.style?.border,
-        boxShadow: impactedNodeIds.includes(node.id) ? '0 0 15px rgba(239, 68, 68, 0.4)' : node.style?.boxShadow,
-      },
     }));
   }, [nodes, impactedNodeIds]);
+
+  useEffect(() => {
+    if (nodes.length > 0) {
+      if (impactedNodeIds.length > 0) {
+        fitView({ nodes: impactedNodeIds.map(id => ({ id })), duration: 800, padding: 0.5 });
+      } else {
+        fitView({ duration: 800, padding: 0.2 });
+      }
+    }
+  }, [nodes, edges, impactedNodeIds, fitView]);
 
   const styledEdges = useMemo(() => {
     return edges.map((edge) => ({
       ...edge,
-      animated: impactedNodeIds.includes(edge.source) && impactedNodeIds.includes(edge.target),
+      animated: true,
       style: {
-        ...edge.style,
-        stroke: impactedNodeIds.includes(edge.source) && impactedNodeIds.includes(edge.target) ? '#ef4444' : '#64748b',
-        strokeWidth: impactedNodeIds.includes(edge.source) && impactedNodeIds.includes(edge.target) ? 3 : 2,
-        opacity: impactedNodeIds.length > 0 ? (impactedNodeIds.includes(edge.source) && impactedNodeIds.includes(edge.target) ? 1 : 0.1) : 0.6,
+        stroke: '#475569',
+        strokeWidth: 1.5,
+        opacity: impactedNodeIds.length > 0 ? (impactedNodeIds.includes(edge.source) || impactedNodeIds.includes(edge.target) ? 1 : 0.1) : 0.4,
       },
       markerEnd: {
         type: MarkerType.ArrowClosed,
-        color: impactedNodeIds.includes(edge.source) && impactedNodeIds.includes(edge.target) ? '#ef4444' : '#64748b',
+        color: '#475569',
       },
     }));
   }, [edges, impactedNodeIds]);
 
   return (
-    <div className="w-full h-full glass rounded-3xl overflow-hidden animate-fade-in">
+    <div className="w-full h-full glass rounded-3xl overflow-hidden animate-fade-in" style={{ minHeight: '500px' }}>
       <ReactFlow
         nodes={styledNodes}
         edges={styledEdges}
+        nodeTypes={nodeTypes}
         onNodeClick={(_, node) => onNodeClick(node)}
         fitView
-        minZoom={0.2}
+        fitViewOptions={{ padding: 0.2 }}
+        minZoom={0.05}
         maxZoom={1.5}
+        nodesDraggable={true}
+        nodesConnectable={false}
+        elementsSelectable={true}
       >
         <Background color="#1e293b" gap={20} size={1} />
         <Controls />
