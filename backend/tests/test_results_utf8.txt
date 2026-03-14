@@ -1,0 +1,24 @@
+﻿--- SQL Extractor ---
+--- Python Extractor ---
+--- JS/TS Extractor ---
+--- Full pipeline ---
+
+=== SUMMARY TABLE ===
+Test Name                                     | Result | Notes
+----------------------------------------------------------------------------------------------------
+SQL Test 1 ù completely empty file            | PASS   | All empty lists, no crash
+SQL Test 2 ù random non-SQL text              | PASS   | All empty lists, no crash
+SQL Test 3 ù half-written CREATE TABLE        | PASS   | Did not crash, partial or empty ok
+SQL Test 4 ù only comments                    | PASS   | All empty lists, no crash
+SQL Test 5 ù None input                       | PASS   | All empty lists, no crash
+Python Test 1 ù SyntaxError                   | PASS   | All empty lists, no crash
+Python Test 2 ù no entities of interest       | PASS   | All empty lists, no crash
+Python Test 3 ù empty file                    | PASS   | All empty lists, no crash
+Python Test 4 ù binary-looking garbage        | PASS   | All empty lists, no crash
+Python Test 5 ù nested calls                  | PASS   | Matches nested calls expectation
+JS Test 1 ù JSX syntax                        | PASS   | component App found
+JS Test 2 ù completely empty file             | PASS   | All empty lists, no crash
+JS Test 3 ù fetch with no path                | PASS   | Did not crash
+JS Test 4 ù minified JS                       | PASS   | A and fetch /api/users found
+JS Test 5 ù TypeScript with type annotations  | PASS   | ProfilePage and fetch /profile found
+Pipeline Test 1 ù mixed code_map              | PASS   | Demo chain intact
