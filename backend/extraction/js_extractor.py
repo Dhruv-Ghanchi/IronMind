@@ -25,7 +25,7 @@ def extract_js_entities(code: str) -> dict:
         entities["components"].append(match.group(1))
 
     # Also catch TypeScript-style: const ProfilePage: React.FC<Props> = (...) =>
-    ts_component_pattern = re.compile(r"const\s+([A-Z][A-Za-z0-9_]*)\s*:[^=]+=\s*\(")
+    ts_component_pattern = re.compile(r"const\s+([A-Z][A-Za-z0-9_]*)\s*:[^=]+=\s*\(.*?\)\s*=>")
     for match in ts_component_pattern.finditer(code):
         entities["components"].append(match.group(1))
 
@@ -44,7 +44,7 @@ def extract_js_entities(code: str) -> dict:
         url = match.group(2)
         entities["api_calls"].append(f"{method} {url}")
 
-     # Extract Field References heurisically
+    # Extract Field References heuristically
     # We look for something like 'user.email'
     # Pattern: a word (not starting with number), followed by a dot, followed by a word.
     # Exclude common JS objects: console, window, document, Math, Object, etc.

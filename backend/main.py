@@ -1,4 +1,4 @@
-from fastapi import FastAPI, UploadFile, File, HTTPException, Header
+from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import shutil
@@ -6,7 +6,6 @@ import tempfile
 import os
 import uuid
 import re
-from typing import Optional
 from backend.ingestion.zip_handler import extract_zip, read_files_to_dict
 from backend.ingestion.file_scanner import scan_directory
 from neo4j import GraphDatabase
@@ -175,16 +174,13 @@ def parse_code_symbols(code_map: dict):
 @app.post("/upload")
 async def upload_repository(
     file: UploadFile = File(...),
-    x_debug_mode: Optional[str] = Header(None, alias="X-Debug-Mode"),
 ):
     """
     Accepts a ZIP repository upload.
     Returns: analysis_id, files_parsed, files_skipped, message
 
-    Hidden debug mode: send header  X-Debug-Mode: true
     PRD constraints: ZIP ≤ 40 MB, max 500 scanned, max 180 parsed, 25s timeout.
     """
-    debug = (x_debug_mode or "").lower() == "true"
 
     # 1. Save upload to a temp file
     temp_zip_fd, temp_zip_path = tempfile.mkstemp(suffix=".zip", prefix="upload_")

@@ -1,13 +1,13 @@
 import re
 
 def extract_sql_entities(code: str) -> dict:
-    # Guard against None input
-    if code is None:
-        return {"tables": [], "columns": [], "foreign_keys": [], "views": []}
     """
     Extract tables, columns, foreign_keys, and views from SQL code.
     This works by using regular expressions on common DDL statements.
     """
+    # Guard against None input
+    if code is None:
+        return {"tables": [], "columns": [], "foreign_keys": [], "views": []}
     entities = {
         "tables": [],
         "columns": [],
