@@ -105,6 +105,20 @@ def extract_python_entities(code: str) -> dict:
     Extract imports, routes, field_refs, functions, classes, and http_calls from Python code
     using the built-in `ast` module.
     """
+    empty = {
+        "imports": [],
+        "routes": [],
+        "field_refs": [],
+        "functions": [],
+        "classes": [],
+        "http_calls": []
+    }
+    # Guard against None or binary/non-string input
+    if not isinstance(code, str):
+        return empty
+    # Guard against null bytes which crash ast.parse
+    if '\x00' in code:
+        return empty
     try:
         tree = ast.parse(code)
     except SyntaxError:

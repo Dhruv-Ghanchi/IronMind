@@ -24,6 +24,11 @@ def extract_js_entities(code: str) -> dict:
     for match in const_arrow_pattern.finditer(code):
         entities["components"].append(match.group(1))
 
+    # Also catch TypeScript-style: const ProfilePage: React.FC<Props> = (...) =>
+    ts_component_pattern = re.compile(r"const\s+([A-Z][A-Za-z0-9_]*)\s*:[^=]+=\s*\(")
+    for match in ts_component_pattern.finditer(code):
+        entities["components"].append(match.group(1))
+
     # Extract API Calls (fetch, axios)
     # fetch('/api/users') or fetch("url") or fetch(urlVar)
     # Output strictly as "fetch /path" if found.
