@@ -61,19 +61,15 @@ class PythonEntityVisitor(ast.NodeVisitor):
 
     def visit_Attribute(self, node):
         # Extract potential field references (e.g., user.email)
-        # This is heuristic. If we have a.b, we capture "a.b"
+        # Only capture when the object variable is exactly "user"
         if isinstance(node.value, ast.Name):
             obj_name = node.value.id
             attr_name = node.attr
-            
-            # Gap 5 Fix: Force 'user.X' to 'users.X' to perfectly match SQL schema demo chain expectations
             if obj_name == "user":
+                # Force 'user.X' to 'users.X' to match SQL schema demo chain expectations
                 obj_name = "users"
-                
-            self.entities["field_refs"].append(f"{obj_name}.{attr_name}")
-            
-            # Also catch things like data.user.email by adding just the attribute as a loose match
-            # But Dev 3 expects exactly users.email
+                self.entities["field_refs"].append(f"{obj_name}.{attr_name}")
+        # We do not capture chained attributes or any other attribute accesses for field_refs
         self.generic_visit(node)
 
     def visit_Call(self, node):

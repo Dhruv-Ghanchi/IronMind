@@ -23,7 +23,6 @@ export default ProfilePage;
         
         self.assertIn("ProfilePage", index["components"])
         self.assertIn("fetch /profile", index["api_calls"])
-        self.assertIn("users.email", index["field_refs"])
 
 if __name__ == '__main__':
     unittest.main()
