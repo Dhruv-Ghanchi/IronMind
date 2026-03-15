@@ -65,12 +65,12 @@ export const UploadZone: React.FC<UploadZoneProps> = ({ onUpload, onGithubAnalyz
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 60000);
 
-      const response = await fetch('http://localhost:8001/api/analyze-github', {
+      const response = await fetch('http://localhost:8000/api/analyze-github', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           github_url: githubUrl,
-          github_token: githubToken || null
+          github_token: githubToken || ""
         }),
         signal: controller.signal
       });
@@ -83,7 +83,17 @@ export const UploadZone: React.FC<UploadZoneProps> = ({ onUpload, onGithubAnalyz
         const status = response.status;
         if (status === 403) throw new Error('Repository is private. Add a GitHub token with repo access.');
         if (status === 404) throw new Error('Repository not found. Check the URL and try again.');
-        throw new Error(errorData.detail || errorData.error || `Server error: ${status}`);
+        
+        // Extract message from detail if it's a complex object (e.g. FastAPI validation error)
+        let detail = errorData.detail || errorData.error;
+        if (typeof detail === 'object' && detail !== null) {
+          try {
+            detail = JSON.stringify(detail);
+          } catch (e) {
+            detail = 'Unknown server error';
+          }
+        }
+        throw new Error(detail || `Server error: ${status}`);
       }
 
       const data = await response.json();
@@ -132,7 +142,12 @@ export const UploadZone: React.FC<UploadZoneProps> = ({ onUpload, onGithubAnalyz
       } else if (error.message === 'Failed to fetch') {
         setError('Cannot connect to GitHub Analyzer backend. Make sure it is running on port 8001.');
       } else {
-        setError(`Could not analyze repository: ${error.message || 'Unknown error'}`);
+        // Fallback for [object Object] cases just in case
+        let message = error.message || 'Unknown error';
+        if (message === '[object Object]') {
+          message = 'An unexpected error occurred during analysis.';
+        }
+        setError(`Could not analyze repository: ${message}`);
       }
       console.error('GitHub analysis error:', error);
     }

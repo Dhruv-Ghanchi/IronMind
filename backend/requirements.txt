@@ -2,5 +2,6 @@ fastapi
 uvicorn
 python-multipart
 neo4j
+httpx
 openai
 python-dotenv

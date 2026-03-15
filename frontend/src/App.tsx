@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { UploadZone } from './components/UploadZone';
 import { AnalysisSummary } from './components/AnalysisSummary';
 import { SuggestedFixes } from './components/SuggestedFixes';
@@ -9,50 +9,19 @@ import GooeyNav from './components/GooeyNav';
 import ClickSpark from './components/ClickSpark';
 import GradientText from './components/GradientText';
 import { Search, ShieldAlert, Layers, Loader2, Sparkles, Star, GitBranch, Code } from 'lucide-react';
-import { uploadRepo, analyzeImpact, getGraph, queryNL, suggestFix } from './api/client';
+import { uploadRepo, analyzeImpact, getGraph, queryNL, suggestFix, ghAnalyzeImpact, ghSuggestFix } from './api/client';
 import { ReactFlowProvider, type Node, type Edge } from 'reactflow';
 
-// Initial Mock Data for UI Testing
-const MOCK_NODES: Node[] = [
-  { id: '1', position: { x: 0, y: 100 }, data: { label: 'users.email' }, style: { width: 150 }, type: 'input' },
-  { id: '2', position: { x: 250, y: 100 }, data: { label: 'auth_service.py' }, style: { width: 150 } },
-  { id: '3', position: { x: 500, y: 50 }, data: { label: 'GET /login' }, style: { width: 120 } },
-  { id: '4', position: { x: 500, y: 150 }, data: { label: 'POST /token' }, style: { width: 120 } },
-  { id: '5', position: { x: 750, y: 100 }, data: { label: 'LoginPage.tsx' }, style: { width: 150 }, type: 'output' },
-];
-
-const MOCK_EDGES: Edge[] = [
-  { id: 'e1-2', source: '1', target: '2', label: 'ref' },
-  { id: 'e2-3', source: '2', target: '3' },
-  { id: 'e2-4', source: '2', target: '4' },
-  { id: 'e3-5', source: '3', target: '5' },
-  { id: 'e4-5', source: '4', target: '5' },
-];
-
-// Mock Debug Data
-const MOCK_DEBUG_DATA = {
-  filesScanned: 54,
-  filesParsed: 42,
-  filesSkipped: 12,
-  parseFailures: 2,
-  nodesCreated: 28,
-  edgesCreated: 24,
-  analysisTime: 18.4,
-  extractionLogs: [
-    '[SQL] Extracted 3 tables, 15 columns from schema.sql',
-    '[Python] Found 8 routes, 12 imports in auth_service.py',
-    '[TypeScript] Parsed 5 components, 7 API calls from LoginPage.tsx',
-    '[Graph] Built 28 nodes across 4 layers',
-    '[Impact] Calculated risk scores for all nodes',
-  ],
-};
+// Initial Data
+const INITIAL_NODES: Node[] = [];
+const INITIAL_EDGES: Edge[] = [];
 
 function App() {
   const [isUploaded, setIsUploaded] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [analysisId, setAnalysisId] = useState<string | null>(null);
-  const [nodes, setNodes] = useState<Node[]>(MOCK_NODES);
-  const [edges, setEdges] = useState<Edge[]>(MOCK_EDGES);
+  const [nodes, setNodes] = useState<Node[]>(INITIAL_NODES);
+  const [edges, setEdges] = useState<Edge[]>(INITIAL_EDGES);
   const [impactedNodeIds, setImpactedNodeIds] = useState<string[]>([]);
   const [suggestions, setSuggestions] = useState<Array<{ target: string; suggestion: string }>>([]);
   const [isLoadingSuggestions, setIsLoadingSuggestions] = useState(false);
@@ -67,6 +36,41 @@ function App() {
   const [isQueryLoading, setIsQueryLoading] = useState(false);
   const [repoMeta, setRepoMeta] = useState<any>(null);
   const [isGithubRepo, setIsGithubRepo] = useState(false);
+
+  // Load from localStorage on mount
+  useEffect(() => {
+    const saved = localStorage.getItem('polyglot_graph');
+    if (saved) {
+      try {
+        const data = JSON.parse(saved);
+        setNodes(data.nodes || INITIAL_NODES);
+        setEdges(data.edges || INITIAL_EDGES);
+        setAnalysisId(data.analysisId || null);
+        setRepoMeta(data.repoMeta || null);
+        setIsGithubRepo(!!data.isGithubRepo);
+        setFilesParsed(data.filesParsed || 0);
+        setFilesSkipped(data.filesSkipped || 0);
+        setNodesCount(data.nodes?.length || 0);
+        setEdgesCount(data.edges?.length || 0);
+        setIsUploaded(true);
+      } catch (e) {
+        console.error('Failed to parse saved graph', e);
+      }
+    }
+  }, []);
+
+  const saveToLocalStorage = (data: any) => {
+    localStorage.setItem('polyglot_graph', JSON.stringify({
+      nodes: data.nodes,
+      edges: data.edges,
+      analysisId: data.analysisId,
+      repoMeta: data.repoMeta,
+      isGithubRepo: data.isGithubRepo,
+      filesParsed: data.filesParsed,
+      filesSkipped: data.filesSkipped,
+      timestamp: Date.now()
+    }));
+  };
 
   const handleUpload = async (file: File) => {
     setIsUploading(true);
@@ -91,6 +95,16 @@ function App() {
       if (graphData.edges) setEdges(graphData.edges);
       setNodesCount(graphData.summary?.nodes || 0);
       setEdgesCount(graphData.summary?.edges || 0);
+
+      saveToLocalStorage({
+        nodes: graphData.nodes,
+        edges: graphData.edges,
+        analysisId: id,
+        repoMeta: null,
+        isGithubRepo: false,
+        filesParsed: uploadData.files_parsed || 0,
+        filesSkipped: uploadData.files_skipped || 0
+      });
 
       setIsUploaded(true);
     } catch (error) {
@@ -129,6 +143,16 @@ function App() {
       // Store analysis ID from backend
       setAnalysisId(data.analysisId);
 
+      saveToLocalStorage({
+        nodes: data.nodes,
+        edges: data.edges,
+        analysisId: data.analysisId,
+        repoMeta: data.repoMeta,
+        isGithubRepo: true,
+        filesParsed: data.filesParsed,
+        filesSkipped: data.filesSkipped
+      });
+
       setIsUploaded(true);
     } catch (error) {
       console.error("GitHub upload failed", error);
@@ -143,22 +167,38 @@ function App() {
         setImpactedNodeIds([node.id]); // Visual feedback
         setIsLoadingSuggestions(true);
         try {
-            const impactResult = await analyzeImpact(analysisId, node.id);
+            // Use GitHub-specific endpoints for GitHub repos
+            const impactFn = isGithubRepo ? ghAnalyzeImpact : analyzeImpact;
+            const suggestFn = isGithubRepo ? ghSuggestFix : suggestFix;
+
+            const impactResult = await impactFn(analysisId, node.id);
             setImpactedNodeIds(impactResult.impacted_nodes || [node.id]);
-            
-            const fixResult = await suggestFix(analysisId, node.id, "Impact Analysis");
+
+            const fixResult = await suggestFn(analysisId, node.id, "Impact Analysis");
             const mappedFixes = fixResult.suggestions.map((s: string) => ({
                 target: node.data?.label || 'Target Node',
                 suggestion: s
             }));
             setSuggestions(mappedFixes);
-        } catch (error) {
+        } catch (error: any) {
             console.error("Analysis failed", error);
+            const status = error?.response?.status;
+            if (status === 404) {
+              setSuggestions([{
+                target: node.data?.label || 'Node',
+                suggestion: 'Please upload a repository to analyze'
+              }]);
+            } else {
+              setSuggestions([{
+                target: node.data?.label || 'Node',
+                suggestion: `Analysis failed: ${error?.response?.data?.detail || error?.message || 'Unknown error'}. Try clicking again.`
+              }]);
+            }
         } finally {
             setIsLoadingSuggestions(false);
         }
     } else {
-        setImpactedNodeIds([node.id, '2', '3', '5']);
+        setImpactedNodeIds([node.id]);
     }
   };
 
@@ -406,7 +446,13 @@ function App() {
                         </div>
                       )}
                     <button 
-                      onClick={() => setIsUploaded(false)} 
+                      onClick={() => {
+                        localStorage.removeItem('polyglot_graph');
+                        setIsUploaded(false);
+                        setAnalysisId(null);
+                        setNodes(INITIAL_NODES);
+                        setEdges(INITIAL_EDGES);
+                      }} 
                       className="w-full py-3 text-[10px] font-black uppercase tracking-[0.3em] text-slate-500 hover:text-white hover:bg-white/5 rounded-xl transition-all border border-transparent hover:border-white/5"
                     >
                       New Architecture
@@ -447,7 +493,20 @@ function App() {
       <DocumentationModal isOpen={isDocumentationOpen} onClose={() => setIsDocumentationOpen(false)} />
 
       {/* Debug Panel */}
-      {isUploaded && <DebugPanel isOpen={isDebugMode} debugData={MOCK_DEBUG_DATA} />}
+      {/* Debug Panel - Shows analysis stats when uploaded */}
+      {isUploaded && <DebugPanel 
+          isOpen={isDebugMode} 
+          debugData={{
+            filesScanned: filesParsed + filesSkipped,
+            filesParsed: filesParsed,
+            filesSkipped: filesSkipped,
+            parseFailures: 0,
+            nodesCreated: nodesCount,
+            edgesCreated: edgesCount,
+            analysisTime: 0, // Not tracked yet
+            extractionLogs: []
+          }} 
+      />}
     </div>
     </ClickSpark>
   );

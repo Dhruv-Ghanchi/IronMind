@@ -95,7 +95,7 @@
             showLoading();
             
             try {
-                const res = await fetch('http://localhost:8001/api/analyze-github', {
+                const res = await fetch('http://localhost:8000/api/analyze-github', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({ github_url: url })

@@ -34,14 +34,91 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Simple Session Store to hold the graph data per repository URL
-# In a production app, we would use a database or Redis.
-SESSION_STORE = {}
+@app.exception_handler(Exception)
+async def global_exception_handler(request, exc):
+    from fastapi.responses import JSONResponse
+    detail = str(exc)
+    if hasattr(exc, "detail"):
+        detail = exc.detail
+    
+    # Ensure detail is a string to avoid [object Object] in frontend
+    if not isinstance(detail, str):
+        detail = str(detail)
+        
+    return JSONResponse(
+        status_code=500,
+        content={"detail": detail},
+    )
+
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request, exc):
+    from fastapi.responses import JSONResponse
+    detail = exc.detail
+    if not isinstance(detail, str):
+        detail = str(detail)
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"detail": detail},
+    )
+
+from fastapi.exceptions import RequestValidationError
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request, exc):
+    from fastapi.responses import JSONResponse
+    # exc.errors() returns a list of errors, we'll stringify it
+    detail = str(exc.errors())
+    return JSONResponse(
+        status_code=422,
+        content={"detail": detail},
+    )
+
+# Disk-backed session store — survives backend restarts
+# Shared between main backend (8000) and github-analyzer (8001)
+# ---------------------------------------------------------------------------
+import pathlib
+import json as _json
+_SESSION_DIR = Path(__file__).parent.parent.parent / ".polyglot_sessions"
+_SESSION_DIR.mkdir(exist_ok=True)
+
+class _DiskSessionStore:
+    """Dict-like wrapper that persists each session as a JSON file."""
+    def __init__(self, directory: pathlib.Path):
+        self._dir = directory
+
+    def _path(self, key: str) -> pathlib.Path:
+        # Sanitize key to prevent directory traversal
+        safe_key = "".join(c for c in key if c.isalnum() or c in "-_.").rstrip()
+        return self._dir / f"{safe_key}.json"
+
+    def __contains__(self, key: str) -> bool:
+        return self._path(key).exists()
+
+    def __getitem__(self, key: str):
+        p = self._path(key)
+        if not p.exists():
+            raise KeyError(key)
+        return _json.loads(p.read_text(encoding="utf-8"))
+
+    def __setitem__(self, key: str, value):
+        self._path(key).write_text(_json.dumps(value), encoding="utf-8")
+
+    def get(self, key: str, default=None):
+        try:
+            return self[key]
+        except KeyError:
+            return default
+
+    def keys(self):
+        return [p.stem for p in self._dir.glob("*.json")]
+
+SESSION_STORE = _DiskSessionStore(_SESSION_DIR)
+
+from typing import Optional
 
 # Request Models
 class AnalyzeRequest(BaseModel):
     github_url: str
-    github_token: str = None
+    github_token: str = ""
 
 class QueryRequest(BaseModel):
     question: str
@@ -80,13 +157,13 @@ async def analyze_github(body: AnalyzeRequest):
     try:
         # Step 1: Parse URL + get repo info
         url_data = parse_github_url(body.github_url)
-        repo_info = get_repo_info(url_data["owner"], url_data["repo"])
+        repo_info = get_repo_info(url_data["owner"], url_data["repo"], body.github_token)
         branch = url_data.get("branch") or repo_info.get("default_branch")
         print(f"[TIMER] Step 1 (parse + repo info): {time.time()-t0:.2f}s")
 
         # Step 2: Get all files + contents in parallel (async)
         t1 = time.time()
-        repo_files = await get_all_files(url_data["owner"], url_data["repo"], branch)
+        repo_files = await get_all_files(url_data["owner"], url_data["repo"], branch, body.github_token)
         print(f"[TIMER] Step 2 (parallel fetch files + contents): {time.time()-t1:.2f}s -- {len(repo_files)} files")
 
         # Step 3: Build dependency graph (downloads content + analysis)
@@ -108,14 +185,18 @@ async def analyze_github(body: AnalyzeRequest):
         }
 
         analysis_id = f"gh-{os.urandom(4).hex()}"
-        SESSION_STORE[analysis_id] = {
+        session_data = {
+            "analysis_id": analysis_id,
             "nodes": analysis_results["nodes"],
             "edges": analysis_results["edges"],
             "repo_meta": repo_meta,
-            "repo_files": repo_files # Store for patch generation context
+            "repo_files": repo_files,
+            "code_map": {f["path"]: f.get("content", "") for f in repo_files} # Compatibility
         }
-        # Also store by URL for backwards compat if needed
-        SESSION_STORE[body.github_url] = SESSION_STORE[analysis_id]
+        SESSION_STORE[analysis_id] = session_data
+        # Also store by URL for backwards compat if needed (sanitize URL for file name)
+        safe_url = body.github_url.replace("https://", "").replace("/", "-").replace(".", "-")
+        SESSION_STORE[safe_url] = session_data
 
         print(f"[TIMER] Step 4 (build response): {time.time()-t3:.2f}s")
         print(f"[TIMER] TOTAL: {time.time()-t0:.2f}s")

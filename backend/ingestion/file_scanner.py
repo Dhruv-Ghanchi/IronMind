@@ -1,37 +1,22 @@
 import os
 import time
 
-ALLOWED_EXTENSIONS = {'.py', '.js', '.ts', '.jsx', '.tsx', '.sql', '.html', '.db', '.css', '.json', '.md', '.txt'}
-IGNORED_DIRECTORIES = {'node_modules', 'dist', 'build', 'venv', '.git', '__pycache__', '.next', 'coverage', 'out'}
-MAX_SCANNED_FILES = 1000000
-MAX_PARSED_FILES = 500000
-SCAN_TIMEOUT_SECONDS = 120  # Increased timeout for large repos
-   # PRD §8 — graceful cutoff at 25s
-SCAN_WARN_SECONDS = 20      # PRD §8 — target analysis time < 20s
-
-DEBUG_LOG_PATH = "debug_log.txt"
-
-def log_debug(msg: str):
-    """Writes to a local debug file and console for audit/tracing."""
-    timestamp = time.strftime("%H:%M:%S")
-    formatted = f"[{timestamp}] {msg}"
-    print(formatted)
-    with open(DEBUG_LOG_PATH, "a", encoding="utf-8") as f:
-        f.write(formatted + "\n")
-
+ALLOWED_EXTENSIONS = {'.py', '.js', '.ts', '.jsx', '.tsx', '.sql', '.html', '.db', '.css', '.json', '.md', '.txt', '.java', '.go', '.c', '.cpp', '.h', '.cs', '.php', '.rb'}
+IGNORED_DIRECTORIES = {'node_modules', 'dist', 'build', 'venv', '.git', '__pycache__', '.next', 'coverage', 'out', 'target', 'bin'}
+MAX_SCANNED_FILES = 1000
+MAX_PARSED_FILES = 200
+SCAN_TIMEOUT_SECONDS = 25
 
 def scan_directory(repo_path: str) -> dict:
     """
-    Traverses the extracted repository.
+    Traverses the repository.
     Filters out ignored directories and unsupported extensions.
-    Enforces hard limits: 500 max scanned, 180 max parsed, 25s timeout.
-
-    Returns a dict with:
-        files_to_parse  — relative paths of supported files to hand to Dev 2
+    Returns:
+        files_to_parse  — relative paths of supported files
         skipped         — count of files not included
-        supported       — count of files that matched and are within limit
-        scanned         — total files inspected (before limit)
-        timed_out       — True if the 25s wall-clock limit was hit
+        supported       — count of files matched
+        scanned         — total files inspected
+        timed_out       — True if limit hit
     """
     files_to_parse = []
     skipped = 0
@@ -42,24 +27,16 @@ def scan_directory(repo_path: str) -> dict:
     start_time = time.time()
 
     for root, dirs, files in os.walk(repo_path):
-        log_debug(f"Walking directory: {root}")
-        
-        # Log and filter ignored directories
-        for d in list(dirs):
-            if d in IGNORED_DIRECTORIES:
-                log_debug(f"IGNORING DIRECTORY: {d} (in {root})")
-                dirs.remove(d)
+        # 1. Filter ignored directories
+        dirs[:] = [d for d in dirs if d not in IGNORED_DIRECTORIES]
         
         for file in files:
-            log_debug(f"Checking file: {file} in {root}")
-            # ── Hard timeout check (PRD §8: graceful cutoff at 25s) ──────────
-            elapsed = time.time() - start_time
-            if elapsed > SCAN_TIMEOUT_SECONDS:
+            # 2. Hard timeout check
+            if time.time() - start_time > SCAN_TIMEOUT_SECONDS:
                 timed_out = True
-                log_debug("Timeout reached during scan")
-                break  # exit inner loop; outer for/else will also break below
+                break
 
-            # ── Hard scan limit ───────────────────────────────────────────────
+            # 3. Hard scan limit
             if scanned >= MAX_SCANNED_FILES:
                 skipped += 1
                 continue
@@ -68,20 +45,21 @@ def scan_directory(repo_path: str) -> dict:
             _, ext = os.path.splitext(file)
             ext = ext.lower()
 
-            # ACCEPT ALL FILES (No extension filter for discovery)
-            if len(files_to_parse) < MAX_PARSED_FILES:
-                abs_f = os.path.join(root, file)
-                files_to_parse.append(abs_f)
-                supported += 1
-                log_debug(f"ACCEPTED: {file} (Path: {abs_f})")
+            # 4. Filter by extension
+            if ext in ALLOWED_EXTENSIONS:
+                if len(files_to_parse) < MAX_PARSED_FILES:
+                    abs_f = os.path.join(root, file)
+                    files_to_parse.append(abs_f)
+                    supported += 1
+                else:
+                    skipped += 1
             else:
                 skipped += 1
-                log_debug(f"LIMIT SKIPPED: {file} (Max parsed reached)")
 
         if timed_out:
-            break  # exit outer os.walk loop cleanly
+            break
 
-    # Convert absolute paths to relative paths for consistent output
+    # Convert to relative paths
     rel_files_to_parse = [os.path.relpath(f, repo_path) for f in files_to_parse]
 
     return {

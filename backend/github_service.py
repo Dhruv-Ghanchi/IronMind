@@ -8,14 +8,13 @@ from fastapi import HTTPException
 
 GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
 
-def get_headers(token: str = None):
+def get_headers(token=None):
+    t = token or os.getenv("GITHUB_TOKEN", "")
     headers = {
         "Accept": "application/vnd.github.v3+json"
     }
-    # Use user-provided token if available (and not empty), otherwise fallback to env
-    final_token = (token if token and token.strip() else None) or GITHUB_TOKEN
-    if final_token:
-        headers["Authorization"] = f"token {final_token}"
+    if t:
+        headers["Authorization"] = f"token {t}"
     return headers
 
 def parse_github_url(url: str) -> dict:
@@ -40,14 +39,23 @@ def parse_github_url(url: str) -> dict:
     repo = parts[2]
     branch = None
     
+    print(f"DEBUG: Parsed: owner={owner}, repo={repo}")
+    
     if len(parts) >= 5 and parts[3] == "tree":
         branch = parts[4]
         
     return {"owner": owner, "repo": repo, "branch": branch}
 
 def get_repo_info(owner: str, repo: str, token: str = None) -> dict:
+    import os
+    print(f"DEBUG: Token loaded in env: {bool(os.getenv('GITHUB_TOKEN'))}")
+    print(f"DEBUG: Fetching repo info for: {owner}/{repo}")
+    
     url = f"https://api.github.com/repos/{owner}/{repo}"
     response = requests.get(url, headers=get_headers(token))
+    
+    print(f"DEBUG: Response status: {response.status_code}")
+    print(f"DEBUG: Response body: {response.text[:500]}")
     
     if response.status_code == 404:
         raise HTTPException(status_code=404, detail="Repository not found.")

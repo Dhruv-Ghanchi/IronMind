@@ -1,31 +1,27 @@
+from dotenv import load_dotenv
+from pathlib import Path
+import os
+load_dotenv(dotenv_path=Path(__file__).parent / ".env")  # Load backend/.env
+
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import shutil
 import tempfile
-import os
 import uuid
 import re
+import json as _json
+import pathlib
+import time
 from backend.ingestion.zip_handler import extract_zip, read_files_to_dict
 from backend.ingestion.file_scanner import scan_directory
 from neo4j import GraphDatabase
 from . import ai_service
-from dotenv import load_dotenv
+from . import github_service
+from . import analyzer
+from . import pr_service
 
-load_dotenv()
-
-app = FastAPI()
-
-DEBUG_LOG_PATH = "debug_log.txt"
-
-def log_debug(msg: str):
-    with open(DEBUG_LOG_PATH, "a") as f:
-        f.write(f"{msg}\n")
-    print(msg) # Still print to terminal
-
-# Clear log on startup
-with open(DEBUG_LOG_PATH, "w") as f:
-    f.write("=== Analysis Backend Debug Log ===\n")
+app = FastAPI(title="Analysis Backend")
 
 app.add_middleware(
     CORSMiddleware,
@@ -34,6 +30,30 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request, exc):
+    from fastapi.responses import JSONResponse
+    detail = str(exc)
+    if hasattr(exc, "detail"):
+        detail = exc.detail
+    if not isinstance(detail, str):
+        detail = str(detail)
+    return JSONResponse(
+        status_code=500,
+        content={"detail": detail},
+    )
+
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request, exc):
+    from fastapi.responses import JSONResponse
+    detail = exc.detail
+    if not isinstance(detail, str):
+        detail = str(detail)
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"detail": detail},
+    )
 
 # Neo4j configuration (PRD §21: persistence)
 NEO4J_URI = os.getenv("NEO4J_URI", "bolt://localhost:7687")
@@ -51,15 +71,51 @@ except Exception as e:
 # AI / Featherless AI Configuration handled via ai_service.py
 
 # ---------------------------------------------------------------------------
-# In-memory session store
-# Key: analysis_id
-# Value: {
-#     "code_map":     { rel_path: source_code }  ← consumed by Dev 2
-#     "scan_summary": { supported, skipped, scanned, timed_out, elapsed_seconds }
-# }
-# repo_path is NOT stored — extracted dir is deleted immediately after reading.
+# Disk-backed session store — survives backend restarts
+# Shared between main backend (8000) and github-analyzer (8001)
 # ---------------------------------------------------------------------------
-SESSION_STORE: dict = {}
+_SESSION_DIR = pathlib.Path(__file__).parent.parent / ".polyglot_sessions"
+_SESSION_DIR.mkdir(exist_ok=True)
+
+class _DiskSessionStore:
+    """Dict-like wrapper that persists each session as a JSON file."""
+    def __init__(self, directory: pathlib.Path):
+        self._dir = directory
+
+    def _path(self, key: str) -> pathlib.Path:
+        # Sanitize key to prevent directory traversal
+        safe_key = "".join(c for c in key if c.isalnum() or c in "-_.").rstrip()
+        return self._dir / f"{safe_key}.json"
+
+    def __contains__(self, key: str) -> bool:
+        return self._path(key).exists()
+
+    def __getitem__(self, key: str):
+        p = self._path(key)
+        if not p.exists():
+            raise KeyError(key)
+        return _json.loads(p.read_text(encoding="utf-8"))
+
+    def __setitem__(self, key: str, value):
+        self._path(key).write_text(_json.dumps(value), encoding="utf-8")
+
+    def get(self, key: str, default=None):
+        try:
+            return self[key]
+        except KeyError:
+            return default
+
+    def keys(self):
+        return [p.stem for p in self._dir.glob("*.json")]
+
+    def items(self):
+        for p in self._dir.glob("*.json"):
+            yield p.stem, _json.loads(p.read_text(encoding="utf-8"))
+
+    def __len__(self):
+        return len(list(self._dir.glob("*.json")))
+
+SESSION_STORE = _DiskSessionStore(_SESSION_DIR)
 
 # PRD §8 hard limit
 MAX_ZIP_SIZE_BYTES = 40 * 1024 * 1024  # 40 MB
@@ -85,6 +141,21 @@ class SuggestFixRequest(BaseModel):
     analysis_id: str
     node_id: str
     change: str
+
+# GitHub-specific models
+class AnalyzeRequest(BaseModel):
+    github_url: str
+    github_token: str = ""
+
+class PatchRequest(BaseModel):
+    intent: str
+    affected_files: list
+    repo_meta: dict
+
+class PRRequest(BaseModel):
+    patches: list
+    intent: str
+    repo_meta: dict
 
 
 # ---------------------------------------------------------------------------
@@ -313,7 +384,7 @@ async def upload_repository(
                     primary_layer = p
                     break
 
-            log_debug(f"FILE FOUND: {normalized_path} | LAYERS: {', '.join(detected_layers)} | PRIMARY: {primary_layer}")
+            print(f"FILE FOUND: {normalized_path} | LAYERS: {', '.join(detected_layers)} | PRIMARY: {primary_layer}")
             
             nodes.append({
                 "id": normalized_path,
@@ -361,7 +432,7 @@ async def upload_repository(
             for match in DB_CONNECT_PATTERN.finditer(content):
                 db_name = match.group(1) or match.group(2)
                 if db_name and not any(n["id"] == db_name for n in nodes):
-                    log_debug(f"Inferred Database from code in {file_path}: {db_name}")
+                    print(f"Inferred Database from code in {file_path}: {db_name}")
                     db_id = f"inferred::{db_name}"
                     nodes.append({
                         "id": db_id,
@@ -398,7 +469,7 @@ async def upload_repository(
                 row = i // 5
                 n["position"] = {"x": base_x + (col * 400), "y": row * 200}
 
-        log_debug("Starting comprehensive edge detection...")
+        print("Starting comprehensive edge detection...")
         for src_path, src_content in code_map.items():
             norm_src = src_path.replace('\\', '/')
             
@@ -418,7 +489,7 @@ async def upload_repository(
                             "kind": "DEPENDS_ON",
                             "style": {"stroke": "#10b981", "strokeWidth": 2}
                         })
-                        log_debug(f"Link: {norm_src} calls API {target_node['id']}")
+                        print(f"Link: {norm_src} calls API {target_node['id']}")
 
             # B. Detect Local File References (HTML -> JS, etc)
             for match in HTML_REF_PATTERN.finditer(src_content):
@@ -435,7 +506,7 @@ async def upload_repository(
                             "kind": "DEPENDS_ON",
                             "style": {"stroke": "#3b82f6", "strokeWidth": 2}
                         })
-                        log_debug(f"Link: {norm_src} references {norm_tgt}")
+                        print(f"Link: {norm_src} references {norm_tgt}")
 
             # C. Detect Imports (Standard)
             for match in IMPORT_PATTERN.finditer(src_content):
@@ -454,7 +525,7 @@ async def upload_repository(
                             "kind": "DEPENDS_ON",
                             "style": {"stroke": "#475569", "strokeWidth": 2}
                         })
-                        log_debug(f"Link: {norm_src} imports {norm_tgt}")
+                        print(f"Link: {norm_src} imports {norm_tgt}")
 
         # Add Symbol Edges
         for se in symbol_edges:
@@ -491,10 +562,12 @@ async def upload_repository(
         # Store results in SESSION_STORE
         analysis_id = f"session-{uuid.uuid4().hex[:8]}"
         SESSION_STORE[analysis_id] = {
+            "analysis_id": analysis_id,
             "code_map": code_map,
             "nodes": nodes,
             "edges": edges,
-            "scan_summary": scan_results
+            "scan_summary": scan_results,
+            "repo_files": [{"path": p, "content": c} for p, c in code_map.items()] # Compatibility
         }
 
         return {
@@ -727,6 +800,226 @@ async def natural_language_query(body: QueryRequest):
         "answer": "\n\n".join(answer_parts) if answer_parts else "I found some relevant files. Check them out in the graph!",
         "matched_nodes": matched_nodes[:15]
     }
+
+# ===========================================================================
+# GITHUB ANALYZER ENDPOINTS (Unified Port 8000)
+# ===========================================================================
+
+@app.get("/api/health")
+async def health():
+    return {"status": "ok"}
+
+@app.post("/api/analyze-github")
+async def analyze_github(body: AnalyzeRequest):
+    t0 = time.time()
+    try:
+        # Step 1: Parse URL + get repo info
+        url_data = github_service.parse_github_url(body.github_url)
+        repo_info = github_service.get_repo_info(url_data["owner"], url_data["repo"], body.github_token)
+        branch = url_data.get("branch") or repo_info.get("default_branch")
+        
+        # Step 2: Get all files + contents in parallel
+        repo_files = await github_service.get_all_files(url_data["owner"], url_data["repo"], branch, body.github_token)
+        
+        # Step 3: Build dependency graph
+        analysis_results = analyzer.analyze_repository(repo_files)
+        
+        # Step 4: Build response & store session
+        repo_meta = {
+            "owner": url_data["owner"],
+            "repo": url_data["repo"],
+            "branch": branch,
+            "full_name": repo_info["full_name"],
+            "github_url": body.github_url,
+            "stars": repo_info["stargazers_count"],
+            "language": repo_info["language"],
+            "description": repo_info["description"]
+        }
+
+        analysis_id = f"gh-{os.urandom(4).hex()}"
+        session_data = {
+            "analysis_id": analysis_id,
+            "nodes": analysis_results["nodes"],
+            "edges": analysis_results["edges"],
+            "repo_meta": repo_meta,
+            "repo_files": repo_files,
+            "code_map": {f["path"]: f.get("content", "") for f in repo_files}
+        }
+        SESSION_STORE[analysis_id] = session_data
+        
+        # Backwards compat for URL-based lookup
+        safe_url = body.github_url.replace("https://", "").replace("/", "-").replace(".", "-")
+        SESSION_STORE[safe_url] = session_data
+
+        return {
+            "analysis_id": analysis_id,
+            "repo_meta": repo_meta,
+            "nodes": analysis_results["nodes"],
+            "edges": analysis_results["edges"],
+            "stats": analysis_results["stats"]
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/query")
+async def api_query(body: QueryRequest):
+    try:
+        analysis_id = body.analysis_id or (body.repo_meta and body.repo_meta.get("analysis_id"))
+        github_url = body.repo_meta.get("github_url") if body.repo_meta else None
+        
+        session = SESSION_STORE.get(analysis_id) or (github_url and SESSION_STORE.get(github_url))
+        if not session:
+            answer = ai_service.gh_answer_query(body.question, "Context: General codebase question.")
+            return {"answer": answer, "impact": None}
+
+        nodes = session.get("nodes", [])
+        
+        # Extract filename
+        file_match = re.search(r'([a-zA-Z0-9_\-./]+\.(?:py|js|ts|jsx|tsx|html|css|sql|vue))', body.question)
+        target_file = file_match.group(1) if file_match else (body.file_name or "unknown")
+
+        # Build affected_files
+        affected_files = []
+        for node in nodes:
+            if any(target_file in imp for imp in node.get("imports", [])):
+                affected_files.append({
+                    "name": node["name"],
+                    "path": node["path"],
+                    "layer": node.get("layer", "UNKNOWN")
+                })
+
+        if not affected_files and target_file:
+            exact_targets = [n for n in nodes if n.get("name") == target_file or n.get("path", "").endswith(target_file)]
+            if exact_targets:
+                primary = exact_targets[0]
+                affected_files.append({"name": primary["name"], "path": primary["path"], "layer": primary.get("layer", "UNKNOWN")})
+                target_dir = primary["path"].rsplit("/", 1)[0] if "/" in primary["path"] else ""
+                sibling_nodes = [n for n in nodes if n.get("path") != primary["path"] and (not target_dir or n.get("path", "").startswith(f"{target_dir}/"))]
+                for sib in sibling_nodes[:4]:
+                    affected_files.append({"name": sib["name"], "path": sib["path"], "layer": sib.get("layer", "UNKNOWN")})
+            else:
+                stem = os.path.splitext(target_file)[0].lower()
+                fuzzy_nodes = [n for n in nodes if stem and stem in n.get("name", "").lower()]
+                for n in fuzzy_nodes[:5]:
+                    affected_files.append({"name": n["name"], "path": n["path"], "layer": n.get("layer", "UNKNOWN")})
+
+        impact_data = ai_service.gh_explain_impact(target_file, affected_files)
+        return {
+            "answer": impact_data.get("summary", "Analysis complete."),
+            "impact": impact_data,
+            "affected_files": affected_files,
+            "matched_nodes": [target_file]
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/impact")
+async def api_impact(body: ImpactRequest):
+    if body.analysis_id not in SESSION_STORE:
+        raise HTTPException(status_code=404, detail="Analysis session not found.")
+    
+    session = SESSION_STORE[body.analysis_id]
+    nodes = session["nodes"]
+    edges = session["edges"]
+    
+    impacted_ids = {body.node_id}
+    queue = [body.node_id]
+    while queue:
+        current = queue.pop(0)
+        for edge in edges:
+            if edge["target"] == current and edge["source"] not in impacted_ids:
+                impacted_ids.add(edge["source"])
+                queue.append(edge["source"])
+    
+    target_node = next((n for n in nodes if n["id"] == body.node_id), None)
+    target_name = target_node["name"] if target_node else body.node_id
+    
+    affected_list = []
+    for node in nodes:
+        if node["id"] in impacted_ids and node["id"] != body.node_id:
+            affected_list.append({
+                "name": node["name"],
+                "path": node["path"],
+                "layer": node.get("layer", "UNKNOWN")
+            })
+            
+    impact_data = ai_service.gh_explain_impact(target_name, affected_list)
+    return {
+        "impacted_nodes": list(impacted_ids),
+        "risk_level": impact_data.get("risk_level", "MEDIUM"),
+        "risk_score": impact_data.get("risk_score", 5),
+        "summary": impact_data.get("summary", ""),
+        "bullets": impact_data.get("bullets", [])
+    }
+
+@app.post("/api/suggest-fix")
+async def api_suggest_fix(body: SuggestFixRequest):
+    if body.analysis_id not in SESSION_STORE:
+        raise HTTPException(status_code=404, detail="Analysis session not found.")
+    
+    session = SESSION_STORE[body.analysis_id]
+    nodes = session["nodes"]
+    repo_files = session.get("repo_files", [])
+    
+    target_node = next((n for n in nodes if n["id"] == body.node_id), None)
+    if not target_node:
+        return {"suggestions": ["Node not found."]}
+        
+    path = target_node.get("path")
+    file_entry = next((f for f in repo_files if f["path"] == path), None)
+    content = file_entry["content"] if file_entry else "Source unavailable."
+    
+    intent = f"Review and suggest improvements for {target_node['name']} ({target_node.get('layer', 'code')})"
+    suggestions = [
+        f"Review '{target_node['name']}' for potential circular dependencies.",
+        f"Ensure appropriate unit tests are in place for the {target_node.get('layer', 'backend')} layer."
+    ]
+    
+    context_files = {path: content} if path else {}
+    patches = ai_service.gh_generate_patches(intent, context_files, [{"name": target_node["name"], "path": path}])
+    
+    for p in patches[:2]:
+        suggestions.append(f"FIX: {p['reason']}\n\nPath: {p['file_path']}\nChange: '{p['original'][:40]}...' -> '{p['replacement'][:40]}...'")
+
+    return {"suggestions": suggestions}
+
+@app.post("/api/generate-patches")
+async def generate_patches_endpoint(body: PatchRequest):
+    github_url = body.repo_meta.get("github_url")
+    if not github_url or github_url not in SESSION_STORE:
+        raise HTTPException(status_code=400, detail="Graph context missing. Analyze repo first.")
+
+    nodes = SESSION_STORE[github_url]["nodes"]
+    file_contents = {}
+
+    for affected in body.affected_files:
+        path = affected.get("path")
+        matching_node = next((n for n in nodes if n["path"] == path), None)
+        if matching_node:
+            download_url = matching_node.get("download_url")
+            if download_url:
+                content = github_service.get_file_content(download_url)
+                file_contents[path] = content
+
+    patches = ai_service.gh_generate_patches(body.intent, file_contents, body.affected_files)
+    return {"patches": patches}
+
+@app.post("/api/create-pr")
+async def create_pr_endpoint(body: PRRequest):
+    meta = body.repo_meta
+    try:
+        result = pr_service.create_pr_from_patches(
+            owner=meta["owner"],
+            repo=meta["repo"],
+            base_branch=meta["branch"],
+            patches=body.patches,
+            intent=body.intent
+        )
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 # ---------------------------------------------------------------------------
