@@ -217,7 +217,21 @@ function App() {
             });
 
             const fixResult = await suggestFn(analysisId, node.id, "Impact Analysis");
+
+            // Map backend response to the shape SuggestedFixes expects
+            const rawSuggestions: string[] = fixResult.suggestions || [];
+            setSuggestions(rawSuggestions.map((s: string) => {
+              const splitIdx = s.indexOf('\n');
+              if (splitIdx > 0) {
+                return { target: s.slice(0, splitIdx).trim(), suggestion: s.slice(splitIdx + 1).trim() };
+              }
+              return { target: node.id, suggestion: s };
+            }));
+
             addPipelineLog(`Found ${impactResult.impacted_nodes?.length || 1} impacted nodes (severity: ${impactResult.severity || 'LOW'})`);
+        } catch (error) {
+            console.error('Impact/suggest failed:', error);
+            setSuggestions([]);
         } finally {
             setIsLoadingSuggestions(false);
         }
