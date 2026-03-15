@@ -1,0 +1,650 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline' ${webview.cspSource}; script-src 'nonce-${nonce}' ${webview.cspSource}; font-src 'self' data:;">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    :root {
+      --primary: #6366f1;
+      --primary-hover: #4f46e5;
+      --bg-dark: var(--vscode-sideBar-background);
+      --card-bg: rgba(0,0,0,0.15);
+      --text-main: var(--vscode-foreground);
+      --text-muted: #94a3b8;
+      --border-color: var(--vscode-panel-border, #333333);
+      --layer-db: #3b82f6;
+      --layer-backend: #14b8a6;
+      --layer-api: #f59e0b;
+      --layer-frontend: #a855f7;
+    }
+
+    body {
+      font-family: var(--vscode-font-family);
+      color: var(--text-main);
+      padding: 0;
+      margin: 0;
+      overflow-y: auto;
+      overflow-x: hidden;
+      font-size: 13px;
+    }
+
+    .container {
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    /* Header */
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+    }
+    .header-content h1 {
+      margin: 0 0 4px 0;
+      font-size: 14px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .icon-dot {
+      color: var(--primary);
+      font-size: 16px;
+    }
+    .subtitle {
+      color: var(--text-muted);
+      font-size: 11px;
+      margin: 0;
+    }
+    .settings-btn {
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      font-size: 16px;
+    }
+
+    /* Buttons */
+    .btn {
+      width: 100%;
+      padding: 10px;
+      border: none;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+    .btn-primary {
+      background: var(--primary);
+      color: white;
+    }
+    .btn-primary:hover {
+      background: var(--primary-hover);
+    }
+    .btn-secondary {
+      background: var(--card-bg);
+      color: var(--text-main);
+      border: 1px solid var(--border-color);
+    }
+    .btn-secondary:hover {
+      background: rgba(255,255,255,0.05);
+    }
+
+    .btn-row {
+      display: none;
+      gap: 8px;
+    }
+
+    /* Status Area */
+    .status-area {
+      text-align: center;
+      color: var(--text-muted);
+    }
+    .status-scanning {
+      color: #3b82f6;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+    .status-complete {
+      color: #10b981;
+    }
+    .status-error {
+      color: #ef4444;
+    }
+    
+    /* Spinner */
+    .spinner {
+      width: 14px;
+      height: 14px;
+      border: 2px solid rgba(59, 130, 246, 0.3);
+      border-top-color: #3b82f6;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+    @keyframes spin { 100% { transform: rotate(360deg); } }
+
+    /* Stats Grid */
+    .stats-grid {
+      display: none; /* hidden initially */
+      grid-template-columns: 1fr 1fr;
+      gap: 1px;
+      background: var(--border-color);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+    .stat-card {
+      background: var(--card-bg);
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+    }
+    .stat-value {
+      font-size: 24px;
+      font-weight: 300;
+      margin: 8px 0;
+    }
+    .stat-label {
+      font-size: 10px;
+      font-weight: 600;
+      color: var(--text-muted);
+      letter-spacing: 0.5px;
+    }
+
+    /* Layer Breakdown */
+    .section-title {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--text-muted);
+      letter-spacing: 0.5px;
+      margin-bottom: 12px;
+      border-bottom: 1px solid var(--border-color);
+      padding-bottom: 4px;
+    }
+    .layer-breakdown {
+      display: none;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+    .layer-item {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .layer-header {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 10px;
+      font-weight: 700;
+      color: var(--text-main);
+    }
+    .layer-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+    }
+    .layer-db .layer-dot { background: var(--layer-db); }
+    .layer-backend .layer-dot { background: var(--layer-backend); }
+    .layer-api .layer-dot { background: var(--layer-api); }
+    .layer-frontend .layer-dot { background: var(--layer-frontend); }
+    .layer-count {
+      font-size: 11px;
+      color: var(--text-muted);
+      padding-left: 14px;
+    }
+
+    /* Info Table */
+    .info-table {
+      display: none;
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 11px;
+    }
+    .info-table td {
+      padding: 4px 0;
+      border-bottom: 1px solid var(--card-bg);
+    }
+    .info-table td:last-child {
+      text-align: right;
+      font-family: monospace;
+      color: var(--text-main);
+    }
+    .info-table td:first-child {
+      color: var(--text-muted);
+    }
+
+    /* Impact Panel */
+    #impact-panel {
+      display: none;
+      background: var(--card-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 12px;
+      border-left: 4px solid var(--primary);
+    }
+    .impact-header {
+      font-size: 12px;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+    .impact-row {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 4px;
+      font-size: 12px;
+    }
+    .impact-row span:last-child {
+      font-weight: 600;
+    }
+    .risk-bar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .progress-bg {
+      flex: 1;
+      height: 6px;
+      background: #333;
+      border-radius: 3px;
+      overflow: hidden;
+    }
+    .progress-fill {
+      height: 100%;
+      background: #ef4444;
+    }
+    .severity-badge {
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 10px;
+      font-weight: bold;
+    }
+    .severity-HIGH { background: #fee2e2; color: #991b1b; }
+    .severity-MEDIUM { background: #fef3c7; color: #92400e; }
+    .severity-LOW { background: #dcfce3; color: #166534; }
+    
+    .affected-list {
+      margin-top: 8px;
+      padding-top: 8px;
+      border-top: 1px solid var(--border-color);
+      max-height: 120px;
+      overflow-y: auto;
+    }
+    .affected-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11px;
+      margin-bottom: 4px;
+      font-family: monospace;
+    }
+    .affected-item-type {
+      color: var(--text-muted);
+      font-size: 10px;
+    }
+
+    /* Pipeline Logs */
+    .logs-container {
+      margin-top: 10px;
+    }
+    .logs-toggle {
+      width: 100%;
+      text-align: left;
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      font-size: 11px;
+      font-weight: 700;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      padding: 0;
+    }
+    .logs-content {
+      display: none;
+      background: var(--card-bg);
+      border-radius: 6px;
+      padding: 8px;
+      margin-top: 8px;
+      max-height: 150px;
+      overflow-y: auto;
+      font-family: monospace;
+      font-size: 10px;
+    }
+    .log-entry {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 4px;
+      line-height: 1.4;
+    }
+    .log-time { color: var(--text-muted); white-space: nowrap; }
+    .log-icon-success { color: #10b981; }
+    .log-icon-error { color: #ef4444; }
+    .log-icon-info { color: #3b82f6; }
+    .log-icon-warning { color: #f59e0b; }
+    
+    .timestamp {
+      text-align: center;
+      font-size: 10px;
+      color: var(--text-muted);
+      margin-top: 10px;
+    }
+
+    /* Question Panel */
+    #question-panel {
+      display: none;
+      background: var(--card-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 12px;
+      margin-top: 12px;
+    }
+    .question-input {
+      width: calc(100% - 16px);
+      padding: 8px;
+      background: rgba(0,0,0,0.2);
+      border: 1px solid var(--border-color);
+      color: var(--text-main);
+      border-radius: 4px;
+      margin-bottom: 8px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div class="header-content">
+        <h1><span class="icon-dot">●</span> Polyglot Analyzer</h1>
+        <p class="subtitle">Cross-language dependency mapper</p>
+      </div>
+      <button class="settings-btn" id="btn-settings" title="Settings">⚙️</button>
+    </div>
+
+    <button id="btn-scan" class="btn btn-primary">▶ Scan Project</button>
+    
+    <div id="btn-actions" class="btn-row">
+      <button id="btn-open-graph" class="btn btn-secondary">⬡ Open Graph</button>
+      <button id="btn-ask" class="btn btn-secondary">○ Ask a Question</button>
+    </div>
+
+    <div id="status" class="status-area">Ready to scan</div>
+
+    <div id="stats-grid" class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-label">FILES ANALYZED</div>
+        <div class="stat-value" id="val-parsed">0</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">FILES SKIPPED</div>
+        <div class="stat-value" id="val-skipped">0</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">GRAPH NODES</div>
+        <div class="stat-value" id="val-nodes">0</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">GRAPH EDGES</div>
+        <div class="stat-value" id="val-edges">0</div>
+      </div>
+    </div>
+
+    <div id="layer-section" style="display:none">
+      <div class="section-title">LAYER BREAKDOWN</div>
+      <div class="layer-breakdown" id="layer-breakdown">
+        <!-- Injected via JS -->
+      </div>
+    </div>
+
+    <div id="info-section" style="display:none">
+      <div class="section-title">LAST SCAN</div>
+      <table class="info-table" id="info-table">
+        <tr><td>Files parsed</td><td id="info-parsed">0</td></tr>
+        <tr><td>Files skipped</td><td id="info-skipped">0</td></tr>
+        <tr><td>Analysis ID</td><td id="info-id">-</td></tr>
+      </table>
+    </div>
+
+    <div id="impact-panel">
+      <div class="impact-header">IMPACT ANALYSIS</div>
+      <div class="impact-row"><span>Changed node:</span> <span id="imp-node">-</span></div>
+      <div class="impact-row"><span>Impacted nodes:</span> <span id="imp-count">0</span></div>
+      <div class="impact-row">
+        <span>Risk score:</span>
+        <div class="risk-bar" style="width: 120px;">
+          <span id="imp-score">0/10</span>
+          <div class="progress-bg"><div id="imp-bar" class="progress-fill" style="width:0%"></div></div>
+        </div>
+      </div>
+      <div class="impact-row"><span>Severity:</span> <span id="imp-sev" class="severity-badge">LOW</span></div>
+      <div class="affected-list" id="imp-list"></div>
+    </div>
+
+    <div id="question-panel">
+      <input type="text" id="q-input" class="question-input" placeholder='e.g. "Where is users.email used?"'>
+      <button id="btn-submit-q" class="btn btn-secondary" style="padding: 4px;">Ask &rarr;</button>
+      <div id="q-answer" style="margin-top: 8px; font-size: 11px; display: none;"></div>
+    </div>
+
+    <div class="logs-container">
+      <button class="logs-toggle" id="btn-logs">▾ PIPELINE LOGS</button>
+      <div class="logs-content" id="logs-content"></div>
+    </div>
+
+    <div class="timestamp" id="last-sync"></div>
+  </div>
+
+  <script nonce="${nonce}">
+    const vscode = acquireVsCodeApi();
+    
+    // Elements
+    const btnScan = document.getElementById('btn-scan');
+    const btnGraph = document.getElementById('btn-open-graph');
+    const btnAsk = document.getElementById('btn-ask');
+    const btnSettings = document.getElementById('btn-settings');
+    const statusEl = document.getElementById('status');
+    const btnActions = document.getElementById('btn-actions');
+    const statsGrid = document.getElementById('stats-grid');
+    const layerSection = document.getElementById('layer-section');
+    const layerBreakdown = document.getElementById('layer-breakdown');
+    const infoSection = document.getElementById('info-section');
+    const infoTable = document.getElementById('info-table');
+    const impactPanel = document.getElementById('impact-panel');
+    const logsBtn = document.getElementById('btn-logs');
+    const logsContent = document.getElementById('logs-content');
+    const qPanel = document.getElementById('question-panel');
+    const btnAskSubmit = document.getElementById('btn-submit-q');
+    
+    let isLogsOpen = false;
+
+    // Listeners
+    btnScan.addEventListener('click', () => {
+      vscode.postMessage({ type: 'scan' });
+    });
+    btnGraph.addEventListener('click', () => {
+      vscode.postMessage({ type: 'openGraph' });
+    });
+    btnAsk.addEventListener('click', () => {
+      qPanel.style.display = qPanel.style.display === 'block' ? 'none' : 'block';
+    });
+    btnAskSubmit.addEventListener('click', () => {
+      vscode.postMessage({ type: 'query', question: document.getElementById('q-input').value });
+    });
+    btnSettings.addEventListener('click', () => {
+      vscode.postMessage({ type: 'openSettings' });
+    });
+    logsBtn.addEventListener('click', () => {
+      isLogsOpen = !isLogsOpen;
+      logsBtn.innerText = (isLogsOpen ? '▴' : '▾') + ' PIPELINE LOGS';
+      logsContent.style.display = isLogsOpen ? 'block' : 'none';
+    });
+
+    // Message handler
+    window.addEventListener('message', event => {
+      const msg = event.data;
+      
+      if (msg.type === 'scanning') {
+        statusEl.innerHTML = '<div class="status-scanning"><div class="spinner"></div>Scanning workspace...</div>';
+      }
+      
+      if (msg.type === 'progress') {
+        statusEl.innerHTML = `<div class="status-scanning"><div class="spinner"></div>${msg.message || 'Processing...'}</div>`;
+      }
+
+      if (msg.type === 'scanComplete' || msg.type === 'restore') {
+        if (!msg.sessionStats) return;
+        
+        // Update Status
+        statusEl.innerHTML = '<span class="status-complete">Scan complete ✓</span>';
+        
+        // Show sections
+        btnActions.style.display = 'flex';
+        statsGrid.style.display = 'grid';
+        layerSection.style.display = 'block';
+        infoSection.style.display = 'block';
+        infoTable.style.display = 'table';
+        
+        // Update Stats values
+        const s = msg.sessionStats;
+        document.getElementById('val-parsed').innerText = s.files_parsed || 0;
+        document.getElementById('val-skipped').innerText = s.files_skipped || 0;
+        
+        // Truncate ID
+        const fullId = s.analysis_id || '';
+        document.getElementById('info-id').innerText = fullId.length > 16 ? fullId.substring(0,16) + '...' : fullId;
+        document.getElementById('info-parsed').innerText = s.files_parsed || 0;
+        document.getElementById('info-skipped').innerText = s.files_skipped || 0;
+        document.getElementById('last-sync').innerText = `Last scan: ${new Date().toLocaleTimeString()}`;
+
+        if (msg.graphData) {
+          const g = msg.graphData;
+          document.getElementById('val-nodes').innerText = g.nodes ? g.nodes.length : 0;
+          document.getElementById('val-edges').innerText = g.edges ? g.edges.length : 0;
+          
+          // Layer Breakdown
+          if (g.nodes) {
+             const layerCounts = { database: 0, backend: 0, api: 0, frontend: 0 };
+             g.nodes.forEach(n => {
+                const layer = (n.data && n.data.layer) ? n.data.layer : n.layer;
+                if (layer && layerCounts[layer] !== undefined) layerCounts[layer]++;
+             });
+             
+             let layerHtml = '';
+             const order = ['database', 'backend', 'api', 'frontend'];
+             order.forEach(l => {
+                layerHtml += `
+                 <div class="layer-item layer-${l}">
+                   <div class="layer-header"><div class="layer-dot"></div> ${l.toUpperCase()} LAYER</div>
+                   <div class="layer-count">${layerCounts[l]} OBJECTS</div>
+                 </div>`;
+             });
+             layerBreakdown.innerHTML = layerHtml;
+          }
+        }
+        
+        if (msg.logs) {
+           renderLogs(msg.logs);
+        }
+        
+        if (msg.impactData) {
+           renderImpact(msg.impactData);
+        }
+      }
+
+      if (msg.type === 'error') {
+        statusEl.innerHTML = `<span class="status-error">Error: ${msg.message}</span>`;
+      }
+      
+      if (msg.type === 'log') {
+         // Re-render handled by array update trick if we manage state, but simple append here
+         appendLog(msg.entry);
+      }
+      
+      if (msg.type === 'impactResult') {
+          renderImpact(msg.data);
+      }
+    });
+
+    function getIcon(type) {
+      if(type==='success') return '<span class="log-icon-success">✓</span>';
+      if(type==='error') return '<span class="log-icon-error">✖</span>';
+      if(type==='warning') return '<span class="log-icon-warning">⚠</span>';
+      return '<span class="log-icon-info">i</span>';
+    }
+
+    function renderLogs(logs) {
+      logsContent.innerHTML = '';
+      logs.forEach(appendLog);
+    }
+    
+    function appendLog(entry) {
+       const div = document.createElement('div');
+       div.className = 'log-entry';
+       div.innerHTML = `<span class="log-time">${entry.timestamp}</span> ${getIcon(entry.type)} <span>${entry.message}</span>`;
+       logsContent.appendChild(div);
+       logsContent.scrollTop = logsContent.scrollHeight;
+    }
+    
+    function renderImpact(data) {
+       if(!data) return;
+       impactPanel.style.display = 'block';
+       document.getElementById('imp-node').innerText = data.changed_node || '-';
+       
+       let impactedCount = 0;
+       let impactedList = [];
+       // Handle both Endpoint 3 formats (Simple / Dev 3 explicit)
+       if (data.impacted_nodes) {
+           impactedCount = data.impacted_nodes.length;
+           impactedList = data.impacted_nodes;
+       } else if (data.all_impacted) {
+           impactedCount = data.all_impacted.length;
+           impactedList = data.all_impacted;
+       }
+       
+       document.getElementById('imp-count').innerText = impactedCount;
+       
+       const scoreStr = (data.risk_score !== undefined ? data.risk_score.toFixed(1) : '0') + '/10';
+       document.getElementById('imp-score').innerText = scoreStr;
+       document.getElementById('imp-bar').style.width = (data.risk_score * 10) + '%';
+       
+       const sevEl = document.getElementById('imp-sev');
+       const sev = data.severity || 'LOW';
+       sevEl.innerText = sev;
+       sevEl.className = 'severity-badge severity-' + sev;
+       
+       if (sev === 'HIGH') {
+           document.getElementById('imp-bar').style.background = '#ef4444';
+       } else if (sev === 'MEDIUM') {
+           document.getElementById('imp-bar').style.background = '#f59e0b';
+       } else {
+           document.getElementById('imp-bar').style.background = '#10b981';
+       }
+       
+       let listHtml = '';
+       impactedList.forEach(item => {
+           let name = item;
+           if (typeof item === 'object') {
+               name = item.id || item.name;
+           }
+           let cleanName = name.replace(/^session-[^\/]*\//, '');
+           listHtml += `<div class="affected-item"><span style="color:#ef4444">●</span> ${cleanName}</div>`;
+       });
+       document.getElementById('imp-list').innerHTML = listHtml;
+    }
+
+    // Init
+    vscode.postMessage({ type: 'ready' });
+  </script>
+</body>
+</html>

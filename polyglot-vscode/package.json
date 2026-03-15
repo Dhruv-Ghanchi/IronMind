@@ -1,0 +1,57 @@
+{
+  "publisher": "ironmind",
+  "name": "polyglot-analyzer",
+  "displayName": "Polyglot Analyzer",
+  "description": "Cross-language dependency mapper — trace how changes propagate across SQL, Python, APIs, and React",
+  "version": "1.0.0",
+  "engines": { "vscode": "^1.74.0" },
+  "categories": ["Other"],
+  "activationEvents": ["onStartupFinished"],
+  "main": "./extension.js",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ironmind/polyglot-analyzer"
+  },
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [{
+        "id": "polyglot-container",
+        "title": "Polyglot Analyzer",
+        "icon": "media/icon.svg"
+      }]
+    },
+    "views": {
+      "polyglot-container": [{
+        "id": "polyglot.sidebar",
+        "name": "Polyglot Analyzer",
+        "type": "webview"
+      }]
+    },
+    "commands": [
+      { "command": "polyglot.scan", "title": "Polyglot: Scan Project" },
+      { "command": "polyglot.openGraph", "title": "Polyglot: Open Graph" },
+      { "command": "polyglot.query", "title": "Polyglot: Ask a Question" },
+      { "command": "polyglot.suggestFix", "title": "Polyglot: Suggest Fix" }
+    ],
+    "configuration": {
+      "title": "Polyglot Analyzer",
+      "properties": {
+        "polyglot.backendUrl": {
+          "type": "string",
+          "default": "http://localhost:8001",
+          "description": "FastAPI backend URL"
+        },
+        "polyglot.frontendUrl": {
+          "type": "string", 
+          "default": "http://localhost:5173",
+          "description": "React frontend URL"
+        }
+      }
+    }
+  },
+  "dependencies": {
+    "jszip": "^3.10.1",
+    "node-fetch": "^2.6.9",
+    "form-data": "^4.0.0"
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "last_sync": "never",
+  "backend_url": "http://localhost:8001",
+  "frontend_url": "http://localhost:5173",
+  "supported_extensions": [".py", ".js", ".ts", ".jsx", ".tsx", ".sql"],
+  "ignored_dirs": ["node_modules", "dist", "build", "venv", ".git", "__pycache__", ".next", "coverage", "out"],
+  "max_files": 500,
+  "endpoints": [
+    "POST /upload",
+    "GET /debug/sessions",
+    "POST /graph",
+    "POST /impact",
+    "POST /query",
+    "POST /suggest-fix"
+  ],
+  "graph_route": "/"
+}

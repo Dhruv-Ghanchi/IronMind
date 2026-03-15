@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' https://unpkg.com; style-src 'unsafe-inline' https://unpkg.com; connect-src *;">
+  <script type="text/javascript" src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: #0d0d0d; color: #e2e8f0; font-family: -apple-system, sans-serif; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+    
+    .header { padding: 12px 24px; background: #161616; border-bottom: 1px solid #333; display: flex; justify-content: space-between; align-items: center; z-index: 10; }
+    h2 { font-size: 14px; font-weight: 700; color: #a855f7; display: flex; align-items: center; gap: 8px; margin: 0; }
+    .header-badges { display: flex; gap: 12px; font-size: 11px; font-family: monospace; color: #94a3b8; }
+    .badge { background: #262626; padding: 4px 8px; border-radius: 4px; border: 1px solid #404040; }
+
+    .legend-bar { padding: 8px 24px; background: #111; border-bottom: 1px solid #222; display: flex; justify-content: space-between; align-items: center; z-index: 10; font-size: 10px; }
+    .legend-items { display: flex; gap: 24px; }
+    .leg-item { display: flex; align-items: center; gap: 6px; font-weight: 700; letter-spacing: 0.5px; color: #94a3b8; }
+    .leg-dot { width: 10px; height: 10px; border-radius: 50%; }
+    .leg-db .leg-dot { background: #3b82f6; }
+    .leg-backend .leg-dot { background: #14b8a6; }
+    .leg-api .leg-dot { background: #f59e0b; }
+    .leg-frontend .leg-dot { background: #a855f7; }
+    .leg-count { color: #525252; font-weight: 400; text-transform: lowercase; }
+    .live-btn { background: #2d1f00; color: #f59e0b; border: 1px solid #78350f; padding: 4px 12px; border-radius: 4px; font-weight: 700; cursor: pointer; }
+
+    #network { flex-grow: 1; width: 100%; position: relative; }
+    
+    .controls { position: absolute; bottom: 24px; left: 24px; display: flex; flex-direction: column; gap: 8px; z-index: 10; }
+    .ctrl-btn { width: 32px; height: 32px; background: #1e1e1e; border: 1px solid #404040; color: #a3a3a3; border-radius: 6px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 16px; font-weight: bold; }
+    .ctrl-btn:hover { background: #2a2a2a; color: white; border-color: #525252; }
+
+    /* Impact Panel Slide Up */
+    .impact-overlay { 
+      position: absolute; bottom: -300px; left: 50%; transform: translateX(-50%); 
+      width: 480px; background: rgba(13,13,13,0.95); backdrop-filter: blur(10px); 
+      border: 1px solid #404040; border-top: 4px solid #f59e0b; border-radius: 12px 12px 0 0; 
+      padding: 16px 24px; z-index: 20; transition: bottom 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); 
+      box-shadow: 0 -10px 40px rgba(0,0,0,0.5); font-size: 12px;
+    }
+    .impact-overlay.show { bottom: 0; }
+    
+    .imp-header { font-weight: 700; color: white; display: flex; align-items: center; gap: 8px; margin-bottom: 12px; font-size: 14px; }
+    .imp-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; color: #a3a3a3; }
+    .imp-bar-container { flex-grow: 1; margin: 0 16px; height: 6px; background: #262626; border-radius: 3px; overflow: hidden; }
+    .imp-bar-fill { height: 100%; background: #ef4444; width: 0; transition: width 1s; }
+    .imp-sev { padding: 2px 6px; border-radius: 4px; font-weight: 700; font-size: 10px; }
+    
+    .imp-list { border-top: 1px solid #333; margin-top: 12px; padding-top: 12px; max-height: 120px; overflow-y: auto; color: #ccc; }
+    .imp-list-item { display: flex; font-family: monospace; align-items: center; margin-bottom: 6px; gap: 8px; }
+    
+    .imp-actions { display: flex; justify-content: flex-end; gap: 12px; margin-top: 16px; }
+    .btn-clear { background: transparent; color: #a3a3a3; border: 1px solid #404040; padding: 6px 12px; border-radius: 4px; cursor: pointer; }
+    .btn-suggest { background: #6366f1; color: white; border: none; padding: 6px 16px; border-radius: 4px; font-weight: 600; cursor: pointer; }
+    
+    .loading-overlay { position: absolute; inset: 0; background: rgba(0,0,0,0.7); z-index: 100; display: none; align-items: center; justify-content: center; color: #6366f1; font-weight: bold; }
+  </style>
+</head>
+<body>
+
+  <div class="header">
+    <h2>◆ Polyglot Dependency Graph</h2>
+    <div class="header-badges">
+      <div class="badge" id="badge-nodes">Nodes: 0</div>
+      <div class="badge" id="badge-edges">Edges: 0</div>
+      <div class="badge" id="badge-id">ID: -</div>
+    </div>
+  </div>
+
+  <div class="legend-bar">
+    <div class="legend-items">
+      <div class="leg-item leg-db"><div class="leg-dot"></div>DATABASE LAYER <span class="leg-count" id="lc-db">0 objects</span></div>
+      <div class="leg-item leg-backend"><div class="leg-dot"></div>BACKEND LAYER <span class="leg-count" id="lc-be">0 objects</span></div>
+      <div class="leg-item leg-api"><div class="leg-dot"></div>API LAYER <span class="leg-count" id="lc-api">0 objects</span></div>
+      <div class="leg-item leg-frontend"><div class="leg-dot"></div>FRONTEND LAYER <span class="leg-count" id="lc-fe">0 objects</span></div>
+    </div>
+    <div class="live-btn">LIVE ARCHITECT</div>
+  </div>
+
+  <div id="network"></div>
+  <div id="loading" class="loading-overlay">Analyzing global impact...</div>
+
+  <div class="controls">
+    <button class="ctrl-btn" id="btn-zoom-in" title="Zoom In">+</button>
+    <button class="ctrl-btn" id="btn-zoom-out" title="Zoom Out">−</button>
+    <button class="ctrl-btn" id="btn-fit" title="Fit to Screen">⊡</button>
+  </div>
+
+  <div class="impact-overlay" id="impact-panel">
+    <div class="imp-header">⚡ IMPACT SIMULATION: <span id="imp-title" style="color:#f59e0b"></span></div>
+    <div class="imp-row">
+      Risk: <span id="imp-score-val" style="color:white; font-weight:bold; margin-left:8px;">0/10</span>
+      <div class="imp-bar-container"><div class="imp-bar-fill" id="imp-bar"></div></div>
+      Severity: <span id="imp-sev" class="imp-sev" style="margin-left:8px">LOW</span>
+    </div>
+    <div style="color:#a3a3a3; margin-bottom: 8px;" id="imp-summary">0 components affected across layers</div>
+    <div class="imp-list" id="imp-list"></div>
+    <div class="imp-actions">
+      <button class="btn-clear" id="btn-clear-impact">Clear</button>
+      <button class="btn-suggest" id="btn-suggest-fix">Suggest Fix</button>
+    </div>
+  </div>
+
+  <script>
+    const vscode = acquireVsCodeApi();
+    const container = document.getElementById('network');
+    let network = null;
+    let currentNodes = new vis.DataSet([]);
+    let currentEdges = new vis.DataSet([]);
+    let selectedNodeId = null;
+
+    const NODE_STYLES = {
+      database: {
+        color: { background: '#0d1b2a', border: '#3b82f6', highlight: { background: '#1e3a5f', border: '#60a5fa' } },
+        font: { color: '#93c5fd', size: 12, face: 'monospace' },
+        shape: 'box', borderWidth: 1.5, borderWidthSelected: 2.5
+      },
+      backend: {
+        color: { background: '#0d2420', border: '#14b8a6', highlight: { background: '#1a3d38', border: '#2dd4bf' } },
+        font: { color: '#5eead4', size: 12, face: 'monospace' },
+        shape: 'box', borderWidth: 1.5, borderWidthSelected: 2.5
+      },
+      api: {
+        color: { background: '#2d1f00', border: '#f59e0b', highlight: { background: '#3d2a00', border: '#fbbf24' } },
+        font: { color: '#fcd34d', size: 12, face: 'monospace' },
+        shape: 'box', borderWidth: 1.5, borderWidthSelected: 2.5
+      },
+      frontend: {
+        color: { background: '#2a0d3d', border: '#a855f7', highlight: { background: '#3d1a5a', border: '#c084fc' } },
+        font: { color: '#d8b4fe', size: 12, face: 'monospace' },
+        shape: 'box', borderWidth: 1.5, borderWidthSelected: 2.5
+      }
+    };
+
+    const EDGE_STYLES = {
+      db_to_backend:      { color: '#3b82f6', arrows: 'to', width: 1 },
+      backend_to_backend: { color: '#14b8a6', arrows: 'to', width: 1, dashes: true },
+      backend_to_api:     { color: '#f59e0b', arrows: 'to', width: 1 },
+      api_to_frontend:    { color: '#a855f7', arrows: 'to', width: 1 },
+      default:            { color: '#525252', arrows: 'to', width: 1 }
+    };
+
+    const options = {
+      layout: {
+        hierarchical: { direction: 'LR', sortMethod: 'directed', levelSeparation: 250, nodeSpacing: 80, treeSpacing: 100 }
+      },
+      physics: { enabled: false },
+      interaction: { hover: true, tooltipDelay: 200, zoomView: true, dragView: true },
+      nodes: { borderRadius: 6, margin: { top: 8, right: 12, bottom: 8, left: 12 } }
+    };
+
+    function renderGraph(nodes, edges) {
+      const visNodes = nodes.map(n => {
+        const layer = n.layer || 'backend';
+        const style = NODE_STYLES[layer] || NODE_STYLES.backend;
+        let shortLabel = String(n.label || n.id).split(/[\\/]/).pop();
+        if (shortLabel.length > 25) shortLabel = shortLabel.substring(0, 22) + '...';
+        return {
+          id: n.id,
+          label: shortLabel,
+          title: n.id,
+          layer: layer,
+          ...style
+        };
+      });
+
+      const visEdges = edges.map(e => {
+        const type = e.type || e.edge_type || 'default';
+        const style = EDGE_STYLES[type] || EDGE_STYLES.default;
+        return {
+          from: e.source,
+          to: e.target,
+          title: e.reason ? `Confidence: ${Math.round(e.confidence*100)}%\\nBasis: ${e.reason}` : '',
+          ...style
+        };
+      });
+
+      currentNodes.clear(); currentNodes.add(visNodes);
+      currentEdges.clear(); currentEdges.add(visEdges);
+
+      const data = { nodes: currentNodes, edges: currentEdges };
+      
+      if (!network) {
+        network = new vis.Network(container, data, options);
+        
+        network.on('click', params => {
+          if (params.nodes.length > 0) {
+            selectedNodeId = params.nodes[0];
+            document.getElementById('loading').style.display = 'flex';
+            vscode.postMessage({ type: 'nodeClick', nodeId: selectedNodeId });
+          } else {
+            resetLayers();
+            document.getElementById('impact-panel').classList.remove('show');
+          }
+        });
+      } else {
+        network.setData(data);
+      }
+      
+      // Auto fit
+      setTimeout(() => network.fit(), 500);
+    }
+
+    function updateHeader(data) {
+      document.getElementById('badge-nodes').innerText = `Nodes: ${data.nodes ? data.nodes.length : 0}`;
+      document.getElementById('badge-edges').innerText = `Edges: ${data.edges ? data.edges.length : 0}`;
+    }
+
+    function updateLayerLegend(nodes) {
+      if (!nodes) return;
+      const counts = { database: 0, backend: 0, api: 0, frontend: 0 };
+      nodes.forEach(n => {
+         const l = n.layer;
+         if (l && counts[l] !== undefined) counts[l]++;
+      });
+      document.getElementById('lc-db').innerText = `${counts.database} objects`;
+      document.getElementById('lc-be').innerText = `${counts.backend} objects`;
+      document.getElementById('lc-api').innerText = `${counts.api} objects`;
+      document.getElementById('lc-fe').innerText = `${counts.frontend} objects`;
+    }
+
+    function resetLayers() {
+       const updates = [];
+       currentNodes.forEach(node => {
+          const style = NODE_STYLES[node.layer || 'backend'];
+          updates.push({ id: node.id, color: style.color, borderWidth: style.borderWidth, shadow: false, opacity: 1.0 });
+       });
+       currentNodes.update(updates);
+    }
+
+    function highlightImpact(impactData) {
+      let impactedList = [];
+      if (impactData.impacted_nodes) impactedList = impactData.impacted_nodes;
+      else if (impactData.all_impacted) impactedList = impactData.all_impacted;
+      
+      const impactedSet = new Set(impactedList.map(i => typeof i === 'object' ? i.id || i.name : i));
+      
+      const updates = [];
+      currentNodes.forEach(node => {
+        if (node.id === impactData.changed_node) {
+          updates.push({ id: node.id, 
+            color: { background: '#7f1d1d', border: '#ef4444', highlight: { background: '#991b1b', border: '#f87171' }},
+            borderWidth: 3, shadow: { enabled: true, color: '#ef4444', size: 15 }, opacity: 1.0
+          });
+        } else if (impactedSet.has(node.id)) {
+          updates.push({ id: node.id,
+            color: { background: '#451a03', border: '#f59e0b', highlight: { background: '#78350f', border: '#fbbf24' }},
+            borderWidth: 2.5, shadow: { enabled: true, color: '#f59e0b', size: 10 }, opacity: 1.0
+          });
+        } else {
+          updates.push({ id: node.id, opacity: 0.2, shadow: false });
+        }
+      });
+      currentNodes.update(updates);
+    }
+
+    function showImpactPanel(data) {
+      const p = document.getElementById('impact-panel');
+      document.getElementById('imp-title').innerText = data.changed_node;
+      
+      const score = data.risk_score || 0;
+      document.getElementById('imp-score-val').innerText = score.toFixed(1) + '/10';
+      
+      const bar = document.getElementById('imp-bar');
+      bar.style.width = (score * 10) + '%';
+      
+      const sevEl = document.getElementById('imp-sev');
+      const sev = data.severity || 'LOW';
+      sevEl.innerText = sev;
+      if (sev === 'HIGH') { sevEl.style.background = '#fee2e2'; sevEl.style.color = '#991b1b'; bar.style.background = '#ef4444'; }
+      else if (sev === 'MEDIUM') { sevEl.style.background = '#fef3c7'; sevEl.style.color = '#92400e'; bar.style.background = '#f59e0b'; }
+      else { sevEl.style.background = '#dcfce3'; sevEl.style.color = '#166534'; bar.style.background = '#10b981'; }
+      
+      let impactedList = [];
+      if (data.impacted_nodes) impactedList = data.impacted_nodes;
+      else if (data.all_impacted) impactedList = data.all_impacted;
+      
+      document.getElementById('imp-summary').innerText = `${impactedList.length} components affected`;
+      
+      let listHtml = '';
+      impactedList.forEach(item => {
+         let name = typeof item === 'object' ? item.id || item.name : item;
+         let clean = name.split(/[\\/]/).pop();
+         let layerStr = '';
+         const nData = currentNodes.get(name);
+         if (nData) layerStr = ` <span style="color:#666">(${nData.layer})</span>`;
+         listHtml += `<div class="imp-list-item"><span style="color:#f59e0b">●</span> ${clean}${layerStr}</div>`;
+      });
+      document.getElementById('imp-list').innerHTML = listHtml;
+      
+      p.classList.add('show');
+    }
+
+    window.addEventListener('message', event => {
+      const msg = event.data;
+      if (msg.type === 'graphData') {
+        const d = msg.data;
+        if (d && d.nodes && d.edges) {
+          renderGraph(d.nodes, d.edges);
+          updateHeader(d);
+          updateLayerLegend(d.nodes);
+          // Extract analysis ID if it is provided alongside graph
+          if (d.analysis_id) document.getElementById('badge-id').innerText = `ID: ${d.analysis_id.substring(0,14)}...`;
+        }
+      }
+      if (msg.type === 'impactResult') {
+        document.getElementById('loading').style.display = 'none';
+        highlightImpact(msg.data);
+        showImpactPanel(msg.data);
+      }
+    });
+
+    // Control buttons
+    document.getElementById('btn-zoom-in').addEventListener('click', () => { if(network) network.moveTo({ scale: network.getScale() * 1.5 }); });
+    document.getElementById('btn-zoom-out').addEventListener('click', () => { if(network) network.moveTo({ scale: network.getScale() / 1.5 }); });
+    document.getElementById('btn-fit').addEventListener('click', () => { if(network) network.fit(); });
+    
+    document.getElementById('btn-clear-impact').addEventListener('click', () => {
+       resetLayers();
+       document.getElementById('impact-panel').classList.remove('show');
+       selectedNodeId = null;
+    });
+    
+    document.getElementById('btn-suggest-fix').addEventListener('click', () => {
+       if (selectedNodeId) {
+           vscode.postMessage({ type: 'suggestFix', nodeId: selectedNodeId });
+       }
+    });
+
+    vscode.postMessage({ type: 'ready' });
+  </script>
+</body>
+</html>
