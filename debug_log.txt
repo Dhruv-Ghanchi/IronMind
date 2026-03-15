@@ -1,0 +1,188 @@
+=== Analysis Backend Debug Log ===
+[06:08:43] Walking directory: C:\Users\EGOIST\AppData\Local\Temp\repo_upload_f391ac027bdd45c8b258357138ff12a2_kd200f7k
+... (truncating for brevity, I'll just replace the marks)
+Starting comprehensive edge detection...
+Link: a2-variable-mismatch/frontend/src/components/UserCard.tsx calls API a2-variable-mismatch/backend/user_service.py::endpoint::/users/me
+[04:36:01] Walking directory: C:\Users\Dhwannya\AppData\Local\Temp\repo_upload_e7b11a84d8534a54a100904c717eb9f3_9ranf8t8
+[04:36:01] Walking directory: C:\Users\Dhwannya\AppData\Local\Temp\repo_upload_e7b11a84d8534a54a100904c717eb9f3_9ranf8t8\ecommerce
+[04:36:01] Walking directory: C:\Users\Dhwannya\AppData\Local\Temp\repo_upload_e7b11a84d8534a54a100904c717eb9f3_9ranf8t8\ecommerce\backend
+[04:36:01] Checking file: order_service.py in C:\Users\Dhwannya\AppData\Local\Temp\repo_upload_e7b11a84d8534a54a100904c717eb9f3_9ranf8t8\ecommerce\backend
+[04:36:01] ACCEPTED: order_service.py (Path: C:\Users\Dhwannya\AppData\Local\Temp\repo_upload_e7b11a84d8534a54a100904c717eb9f3_9ranf8t8\ecommerce\backend\order_service.py)
+[04:36:01] Checking file: product_service.py in C:\Users\Dhwannya\AppData\Local\Temp\repo_upload_e7b11a84d8534a54a100904c717eb9f3_9ranf8t8\ecommerce\backend
+[04:36:01] ACCEPTED: product_service.py (Path: C:\Users\Dhwannya\AppData\Local\Temp\repo_upload_e7b11a84d8534a54a100904c717eb9f3_9ranf8t8\ecommerce\backend\product_service.py)
+[04:36:01] Checking file: user_service.py in C:\Users\Dhwannya\AppData\Local\Temp\repo_upload_e7b11a84d8534a54a100904c717eb9f3_9ranf8t8\ecommerce\backend
+[04:36:01] ACCEPTED: user_service.py (Path: C:\Users\Dhwannya\AppData\Local\Temp\repo_upload_e7b11a84d8534a54a100904c717eb9f3_9ranf8t8\ecommerce\backend\user_service.py)
+[04:36:01] Walking directory: C:\Users\Dhwannya\AppData\Local\Temp\repo_upload_e7b11a84d8534a54a100904c717eb9f3_9ranf8t8\ecommerce\database
+[04:36:01] Checking file: schema.sql in C:\Users\Dhwannya\AppData\Local\Temp\repo_upload_e7b11a84d8534a54a100904c717eb9f3_9ranf8t8\ecommerce\database
+[04:36:01] ACCEPTED: schema.sql (Path: C:\Users\Dhwannya\AppData\Local\Temp\repo_upload_e7b11a84d8534a54a100904c717eb9f3_9ranf8t8\ecommerce\database\schema.sql)
+[04:36:01] Walking directory: C:\Users\Dhwannya\AppData\Local\Temp\repo_upload_e7b11a84d8534a54a100904c717eb9f3_9ranf8t8\ecommerce\frontend
+[04:36:01] Walking directory: C:\Users\Dhwannya\AppData\Local\Temp\repo_upload_e7b11a84d8534a54a100904c717eb9f3_9ranf8t8\ecommerce\frontend\src
+[04:36:01] Walking directory: C:\Users\Dhwannya\AppData\Local\Temp\repo_upload_e7b11a84d8534a54a100904c717eb9f3_9ranf8t8\ecommerce\frontend\src\api
+[04:36:01] Checking file: client.ts in C:\Users\Dhwannya\AppData\Local\Temp\repo_upload_e7b11a84d8534a54a100904c717eb9f3_9ranf8t8\ecommerce\frontend\src\api
+[04:36:01] ACCEPTED: client.ts (Path: C:\Users\Dhwannya\AppData\Local\Temp\repo_upload_e7b11a84d8534a54a100904c717eb9f3_9ranf8t8\ecommerce\frontend\src\api\client.ts)
+[04:36:01] Walking directory: C:\Users\Dhwannya\AppData\Local\Temp\repo_upload_e7b11a84d8534a54a100904c717eb9f3_9ranf8t8\ecommerce\frontend\src\components
+[04:36:01] Checking file: OrderPage.tsx in C:\Users\Dhwannya\AppData\Local\Temp\repo_upload_e7b11a84d8534a54a100904c717eb9f3_9ranf8t8\ecommerce\frontend\src\components
+[04:36:01] ACCEPTED: OrderPage.tsx (Path: C:\Users\Dhwannya\AppData\Local\Temp\repo_upload_e7b11a84d8534a54a100904c717eb9f3_9ranf8t8\ecommerce\frontend\src\components\OrderPage.tsx)
+[04:36:01] Checking file: ProductPage.tsx in C:\Users\Dhwannya\AppData\Local\Temp\repo_upload_e7b11a84d8534a54a100904c717eb9f3_9ranf8t8\ecommerce\frontend\src\components
+[04:36:01] ACCEPTED: ProductPage.tsx (Path: C:\Users\Dhwannya\AppData\Local\Temp\repo_upload_e7b11a84d8534a54a100904c717eb9f3_9ranf8t8\ecommerce\frontend\src\components\ProductPage.tsx)
+[04:36:01] Walking directory: C:\Users\Dhwannya\AppData\Local\Temp\repo_upload_e7b11a84d8534a54a100904c717eb9f3_9ranf8t8\ecommerce\{database,backend,frontend
+[04:36:01] Walking directory: C:\Users\Dhwannya\AppData\Local\Temp\repo_upload_e7b11a84d8534a54a100904c717eb9f3_9ranf8t8\ecommerce\{database,backend,frontend\src
+[04:36:01] Walking directory: C:\Users\Dhwannya\AppData\Local\Temp\repo_upload_e7b11a84d8534a54a100904c717eb9f3_9ranf8t8\ecommerce\{database,backend,frontend\src\{components,api}}
+FILE FOUND: ecommerce/backend/order_service.py | LAYERS: database, backend, api | PRIMARY: database
+FILE FOUND: ecommerce/backend/product_service.py | LAYERS: database, backend, api | PRIMARY: database
+FILE FOUND: ecommerce/backend/user_service.py | LAYERS: database, backend, api | PRIMARY: database
+FILE FOUND: ecommerce/database/schema.sql | LAYERS: database | PRIMARY: database
+FILE FOUND: ecommerce/frontend/src/api/client.ts | LAYERS: frontend | PRIMARY: frontend
+FILE FOUND: ecommerce/frontend/src/components/OrderPage.tsx | LAYERS: frontend | PRIMARY: frontend
+FILE FOUND: ecommerce/frontend/src/components/ProductPage.tsx | LAYERS: frontend | PRIMARY: frontend
+Starting comprehensive edge detection...
+Link: ecommerce/frontend/src/api/client.ts calls API ecommerce/backend/product_service.py::endpoint::/products
+Link: ecommerce/frontend/src/api/client.ts calls API ecommerce/backend/product_service.py::endpoint::/products/{id}
+Link: ecommerce/frontend/src/api/client.ts calls API ecommerce/backend/product_service.py::endpoint::/products
+Link: ecommerce/frontend/src/api/client.ts calls API ecommerce/backend/order_service.py::endpoint::/orders
+Link: ecommerce/frontend/src/api/client.ts calls API ecommerce/backend/order_service.py::endpoint::/orders/{id}
+Link: ecommerce/frontend/src/api/client.ts calls API ecommerce/backend/order_service.py::endpoint::/orders/user/{user_id}
+Link: ecommerce/frontend/src/components/OrderPage.tsx calls API ecommerce/backend/order_service.py::endpoint::/orders
+Link: ecommerce/frontend/src/components/OrderPage.tsx calls API ecommerce/backend/order_service.py::endpoint::/orders/{id}
+Link: ecommerce/frontend/src/components/OrderPage.tsx calls API ecommerce/backend/order_service.py::endpoint::/orders/user/{user_id}
+Link: ecommerce/frontend/src/components/ProductPage.tsx calls API ecommerce/backend/product_service.py::endpoint::/products
+Link: ecommerce/frontend/src/components/ProductPage.tsx calls API ecommerce/backend/product_service.py::endpoint::/products/{id}
+Link: ecommerce/frontend/src/components/ProductPage.tsx calls API ecommerce/backend/product_service.py::endpoint::/products
+[04:38:46] Walking directory: C:\Users\Dhwannya\AppData\Local\Temp\repo_upload_309d78fb0ef540459f463410d4059891_voy0zicx
+[04:38:46] Walking directory: C:\Users\Dhwannya\AppData\Local\Temp\repo_upload_309d78fb0ef540459f463410d4059891_voy0zicx\hospital
+[04:38:46] Walking directory: C:\Users\Dhwannya\AppData\Local\Temp\repo_upload_309d78fb0ef540459f463410d4059891_voy0zicx\hospital\backend
+[04:38:46] Checking file: appointment_service.py in C:\Users\Dhwannya\AppData\Local\Temp\repo_upload_309d78fb0ef540459f463410d4059891_voy0zicx\hospital\backend
+[04:38:46] ACCEPTED: appointment_service.py (Path: C:\Users\Dhwannya\AppData\Local\Temp\repo_upload_309d78fb0ef540459f463410d4059891_voy0zicx\hospital\backend\appointment_service.py)
+[04:38:46] Checking file: doctor_service.py in C:\Users\Dhwannya\AppData\Local\Temp\repo_upload_309d78fb0ef540459f463410d4059891_voy0zicx\hospital\backend
+[04:38:46] ACCEPTED: doctor_service.py (Path: C:\Users\Dhwannya\AppData\Local\Temp\repo_upload_309d78fb0ef540459f463410d4059891_voy0zicx\hospital\backend\doctor_service.py)
+[04:38:46] Checking file: patient_service.py in C:\Users\Dhwannya\AppData\Local\Temp\repo_upload_309d78fb0ef540459f463410d4059891_voy0zicx\hospital\backend
+[04:38:46] ACCEPTED: patient_service.py (Path: C:\Users\Dhwannya\AppData\Local\Temp\repo_upload_309d78fb0ef540459f463410d4059891_voy0zicx\hospital\backend\patient_service.py)
+[04:38:46] Walking directory: C:\Users\Dhwannya\AppData\Local\Temp\repo_upload_309d78fb0ef540459f463410d4059891_voy0zicx\hospital\database
+[04:38:46] Checking file: schema.sql in C:\Users\Dhwannya\AppData\Local\Temp\repo_upload_309d78fb0ef540459f463410d4059891_voy0zicx\hospital\database
+[04:38:46] ACCEPTED: schema.sql (Path: C:\Users\Dhwannya\AppData\Local\Temp\repo_upload_309d78fb0ef540459f463410d4059891_voy0zicx\hospital\database\schema.sql)
+[04:38:46] Walking directory: C:\Users\Dhwannya\AppData\Local\Temp\repo_upload_309d78fb0ef540459f463410d4059891_voy0zicx\hospital\frontend
+[04:38:46] Walking directory: C:\Users\Dhwannya\AppData\Local\Temp\repo_upload_309d78fb0ef540459f463410d4059891_voy0zicx\hospital\frontend\src
+[04:38:46] Walking directory: C:\Users\Dhwannya\AppData\Local\Temp\repo_upload_309d78fb0ef540459f463410d4059891_voy0zicx\hospital\frontend\src\api
+[04:38:46] Checking file: healthApi.ts in C:\Users\Dhwannya\AppData\Local\Temp\repo_upload_309d78fb0ef540459f463410d4059891_voy0zicx\hospital\frontend\src\api
+[04:38:46] ACCEPTED: healthApi.ts (Path: C:\Users\Dhwannya\AppData\Local\Temp\repo_upload_309d78fb0ef540459f463410d4059891_voy0zicx\hospital\frontend\src\api\healthApi.ts)
+[04:38:46] Walking directory: C:\Users\Dhwannya\AppData\Local\Temp\repo_upload_309d78fb0ef540459f463410d4059891_voy0zicx\hospital\frontend\src\components
+[04:38:46] Checking file: AppointmentBooking.tsx in C:\Users\Dhwannya\AppData\Local\Temp\repo_upload_309d78fb0ef540459f463410d4059891_voy0zicx\hospital\frontend\src\components
+[04:38:46] ACCEPTED: AppointmentBooking.tsx (Path: C:\Users\Dhwannya\AppData\Local\Temp\repo_upload_309d78fb0ef540459f463410d4059891_voy0zicx\hospital\frontend\src\components\AppointmentBooking.tsx)
+[04:38:46] Checking file: PatientDashboard.tsx in C:\Users\Dhwannya\AppData\Local\Temp\repo_upload_309d78fb0ef540459f463410d4059891_voy0zicx\hospital\frontend\src\components
+[04:38:46] ACCEPTED: PatientDashboard.tsx (Path: C:\Users\Dhwannya\AppData\Local\Temp\repo_upload_309d78fb0ef540459f463410d4059891_voy0zicx\hospital\frontend\src\components\PatientDashboard.tsx)
+[04:38:46] Walking directory: C:\Users\Dhwannya\AppData\Local\Temp\repo_upload_309d78fb0ef540459f463410d4059891_voy0zicx\hospital\{database,backend,frontend
+[04:38:46] Walking directory: C:\Users\Dhwannya\AppData\Local\Temp\repo_upload_309d78fb0ef540459f463410d4059891_voy0zicx\hospital\{database,backend,frontend\src
+[04:38:46] Walking directory: C:\Users\Dhwannya\AppData\Local\Temp\repo_upload_309d78fb0ef540459f463410d4059891_voy0zicx\hospital\{database,backend,frontend\src\{components,api}}
+FILE FOUND: hospital/backend/appointment_service.py | LAYERS: database, backend, api | PRIMARY: database
+FILE FOUND: hospital/backend/doctor_service.py | LAYERS: database, backend, api | PRIMARY: database
+FILE FOUND: hospital/backend/patient_service.py | LAYERS: database, backend, api | PRIMARY: database
+FILE FOUND: hospital/database/schema.sql | LAYERS: database | PRIMARY: database
+FILE FOUND: hospital/frontend/src/api/healthApi.ts | LAYERS: frontend | PRIMARY: frontend
+FILE FOUND: hospital/frontend/src/components/AppointmentBooking.tsx | LAYERS: frontend | PRIMARY: frontend
+FILE FOUND: hospital/frontend/src/components/PatientDashboard.tsx | LAYERS: frontend | PRIMARY: frontend
+Starting comprehensive edge detection...
+Link: hospital/frontend/src/api/healthApi.ts calls API hospital/backend/patient_service.py::endpoint::/patients/{id}
+Link: hospital/frontend/src/api/healthApi.ts calls API hospital/backend/patient_service.py::endpoint::/patients
+Link: hospital/frontend/src/api/healthApi.ts calls API hospital/backend/patient_service.py::endpoint::/patients/{id}
+Link: hospital/frontend/src/api/healthApi.ts calls API hospital/backend/appointment_service.py::endpoint::/appointments
+Link: hospital/frontend/src/api/healthApi.ts calls API hospital/backend/appointment_service.py::endpoint::/appointments/{id}
+Link: hospital/frontend/src/api/healthApi.ts calls API hospital/backend/appointment_service.py::endpoint::/appointments/patient/{patient_id}
+Link: hospital/frontend/src/api/healthApi.ts calls API hospital/backend/doctor_service.py::endpoint::/doctors
+Link: hospital/frontend/src/api/healthApi.ts calls API hospital/backend/doctor_service.py::endpoint::/doctors/{id}
+Link: hospital/frontend/src/components/AppointmentBooking.tsx calls API hospital/backend/doctor_service.py::endpoint::/doctors
+Link: hospital/frontend/src/components/AppointmentBooking.tsx calls API hospital/backend/doctor_service.py::endpoint::/doctors/{id}
+Link: hospital/frontend/src/components/AppointmentBooking.tsx calls API hospital/backend/appointment_service.py::endpoint::/appointments
+Link: hospital/frontend/src/components/AppointmentBooking.tsx calls API hospital/backend/appointment_service.py::endpoint::/appointments/{id}
+Link: hospital/frontend/src/components/AppointmentBooking.tsx calls API hospital/backend/appointment_service.py::endpoint::/appointments/patient/{patient_id}
+[04:45:27] Walking directory: C:\Users\Dhwannya\AppData\Local\Temp\repo_upload_9b9d0caac4084c88aa07f5f274112409_n14f04ub
+[04:45:27] Walking directory: C:\Users\Dhwannya\AppData\Local\Temp\repo_upload_9b9d0caac4084c88aa07f5f274112409_n14f04ub\hospital
+[04:45:27] Walking directory: C:\Users\Dhwannya\AppData\Local\Temp\repo_upload_9b9d0caac4084c88aa07f5f274112409_n14f04ub\hospital\backend
+[04:45:27] Checking file: appointment_service.py in C:\Users\Dhwannya\AppData\Local\Temp\repo_upload_9b9d0caac4084c88aa07f5f274112409_n14f04ub\hospital\backend
+[04:45:27] ACCEPTED: appointment_service.py (Path: C:\Users\Dhwannya\AppData\Local\Temp\repo_upload_9b9d0caac4084c88aa07f5f274112409_n14f04ub\hospital\backend\appointment_service.py)
+[04:45:27] Checking file: doctor_service.py in C:\Users\Dhwannya\AppData\Local\Temp\repo_upload_9b9d0caac4084c88aa07f5f274112409_n14f04ub\hospital\backend
+[04:45:27] ACCEPTED: doctor_service.py (Path: C:\Users\Dhwannya\AppData\Local\Temp\repo_upload_9b9d0caac4084c88aa07f5f274112409_n14f04ub\hospital\backend\doctor_service.py)
+[04:45:27] Checking file: patient_service.py in C:\Users\Dhwannya\AppData\Local\Temp\repo_upload_9b9d0caac4084c88aa07f5f274112409_n14f04ub\hospital\backend
+[04:45:27] ACCEPTED: patient_service.py (Path: C:\Users\Dhwannya\AppData\Local\Temp\repo_upload_9b9d0caac4084c88aa07f5f274112409_n14f04ub\hospital\backend\patient_service.py)
+[04:45:27] Walking directory: C:\Users\Dhwannya\AppData\Local\Temp\repo_upload_9b9d0caac4084c88aa07f5f274112409_n14f04ub\hospital\database
+[04:45:27] Checking file: schema.sql in C:\Users\Dhwannya\AppData\Local\Temp\repo_upload_9b9d0caac4084c88aa07f5f274112409_n14f04ub\hospital\database
+[04:45:27] ACCEPTED: schema.sql (Path: C:\Users\Dhwannya\AppData\Local\Temp\repo_upload_9b9d0caac4084c88aa07f5f274112409_n14f04ub\hospital\database\schema.sql)
+[04:45:27] Walking directory: C:\Users\Dhwannya\AppData\Local\Temp\repo_upload_9b9d0caac4084c88aa07f5f274112409_n14f04ub\hospital\frontend
+[04:45:27] Walking directory: C:\Users\Dhwannya\AppData\Local\Temp\repo_upload_9b9d0caac4084c88aa07f5f274112409_n14f04ub\hospital\frontend\src
+[04:45:27] Walking directory: C:\Users\Dhwannya\AppData\Local\Temp\repo_upload_9b9d0caac4084c88aa07f5f274112409_n14f04ub\hospital\frontend\src\api
+[04:45:27] Checking file: healthApi.ts in C:\Users\Dhwannya\AppData\Local\Temp\repo_upload_9b9d0caac4084c88aa07f5f274112409_n14f04ub\hospital\frontend\src\api
+[04:45:27] ACCEPTED: healthApi.ts (Path: C:\Users\Dhwannya\AppData\Local\Temp\repo_upload_9b9d0caac4084c88aa07f5f274112409_n14f04ub\hospital\frontend\src\api\healthApi.ts)
+[04:45:27] Walking directory: C:\Users\Dhwannya\AppData\Local\Temp\repo_upload_9b9d0caac4084c88aa07f5f274112409_n14f04ub\hospital\frontend\src\components
+[04:45:27] Checking file: AppointmentBooking.tsx in C:\Users\Dhwannya\AppData\Local\Temp\repo_upload_9b9d0caac4084c88aa07f5f274112409_n14f04ub\hospital\frontend\src\components
+[04:45:27] ACCEPTED: AppointmentBooking.tsx (Path: C:\Users\Dhwannya\AppData\Local\Temp\repo_upload_9b9d0caac4084c88aa07f5f274112409_n14f04ub\hospital\frontend\src\components\AppointmentBooking.tsx)
+[04:45:27] Checking file: PatientDashboard.tsx in C:\Users\Dhwannya\AppData\Local\Temp\repo_upload_9b9d0caac4084c88aa07f5f274112409_n14f04ub\hospital\frontend\src\components
+[04:45:27] ACCEPTED: PatientDashboard.tsx (Path: C:\Users\Dhwannya\AppData\Local\Temp\repo_upload_9b9d0caac4084c88aa07f5f274112409_n14f04ub\hospital\frontend\src\components\PatientDashboard.tsx)
+[04:45:27] Walking directory: C:\Users\Dhwannya\AppData\Local\Temp\repo_upload_9b9d0caac4084c88aa07f5f274112409_n14f04ub\hospital\{database,backend,frontend
+[04:45:27] Walking directory: C:\Users\Dhwannya\AppData\Local\Temp\repo_upload_9b9d0caac4084c88aa07f5f274112409_n14f04ub\hospital\{database,backend,frontend\src
+[04:45:27] Walking directory: C:\Users\Dhwannya\AppData\Local\Temp\repo_upload_9b9d0caac4084c88aa07f5f274112409_n14f04ub\hospital\{database,backend,frontend\src\{components,api}}
+FILE FOUND: hospital/backend/appointment_service.py | LAYERS: database, backend, api | PRIMARY: database
+FILE FOUND: hospital/backend/doctor_service.py | LAYERS: database, backend, api | PRIMARY: database
+FILE FOUND: hospital/backend/patient_service.py | LAYERS: database, backend, api | PRIMARY: database
+FILE FOUND: hospital/database/schema.sql | LAYERS: database | PRIMARY: database
+FILE FOUND: hospital/frontend/src/api/healthApi.ts | LAYERS: frontend | PRIMARY: frontend
+FILE FOUND: hospital/frontend/src/components/AppointmentBooking.tsx | LAYERS: frontend | PRIMARY: frontend
+FILE FOUND: hospital/frontend/src/components/PatientDashboard.tsx | LAYERS: frontend | PRIMARY: frontend
+Starting comprehensive edge detection...
+Link: hospital/frontend/src/api/healthApi.ts calls API hospital/backend/patient_service.py::endpoint::/patients/{id}
+Link: hospital/frontend/src/api/healthApi.ts calls API hospital/backend/patient_service.py::endpoint::/patients
+Link: hospital/frontend/src/api/healthApi.ts calls API hospital/backend/patient_service.py::endpoint::/patients/{id}
+Link: hospital/frontend/src/api/healthApi.ts calls API hospital/backend/appointment_service.py::endpoint::/appointments
+Link: hospital/frontend/src/api/healthApi.ts calls API hospital/backend/appointment_service.py::endpoint::/appointments/{id}
+Link: hospital/frontend/src/api/healthApi.ts calls API hospital/backend/appointment_service.py::endpoint::/appointments/patient/{patient_id}
+Link: hospital/frontend/src/api/healthApi.ts calls API hospital/backend/doctor_service.py::endpoint::/doctors
+Link: hospital/frontend/src/api/healthApi.ts calls API hospital/backend/doctor_service.py::endpoint::/doctors/{id}
+Link: hospital/frontend/src/components/AppointmentBooking.tsx calls API hospital/backend/doctor_service.py::endpoint::/doctors
+Link: hospital/frontend/src/components/AppointmentBooking.tsx calls API hospital/backend/doctor_service.py::endpoint::/doctors/{id}
+Link: hospital/frontend/src/components/AppointmentBooking.tsx calls API hospital/backend/appointment_service.py::endpoint::/appointments
+Link: hospital/frontend/src/components/AppointmentBooking.tsx calls API hospital/backend/appointment_service.py::endpoint::/appointments/{id}
+Link: hospital/frontend/src/components/AppointmentBooking.tsx calls API hospital/backend/appointment_service.py::endpoint::/appointments/patient/{patient_id}
+[04:47:35] Walking directory: C:\Users\Dhwannya\AppData\Local\Temp\repo_upload_09e8fff1238647d7ba2ff248d7a1a2bb_cs4ttt4k
+[04:47:35] Walking directory: C:\Users\Dhwannya\AppData\Local\Temp\repo_upload_09e8fff1238647d7ba2ff248d7a1a2bb_cs4ttt4k\hospital
+[04:47:35] Walking directory: C:\Users\Dhwannya\AppData\Local\Temp\repo_upload_09e8fff1238647d7ba2ff248d7a1a2bb_cs4ttt4k\hospital\backend
+[04:47:35] Checking file: appointment_service.py in C:\Users\Dhwannya\AppData\Local\Temp\repo_upload_09e8fff1238647d7ba2ff248d7a1a2bb_cs4ttt4k\hospital\backend
+[04:47:35] ACCEPTED: appointment_service.py (Path: C:\Users\Dhwannya\AppData\Local\Temp\repo_upload_09e8fff1238647d7ba2ff248d7a1a2bb_cs4ttt4k\hospital\backend\appointment_service.py)
+[04:47:35] Checking file: doctor_service.py in C:\Users\Dhwannya\AppData\Local\Temp\repo_upload_09e8fff1238647d7ba2ff248d7a1a2bb_cs4ttt4k\hospital\backend
+[04:47:35] ACCEPTED: doctor_service.py (Path: C:\Users\Dhwannya\AppData\Local\Temp\repo_upload_09e8fff1238647d7ba2ff248d7a1a2bb_cs4ttt4k\hospital\backend\doctor_service.py)
+[04:47:35] Checking file: patient_service.py in C:\Users\Dhwannya\AppData\Local\Temp\repo_upload_09e8fff1238647d7ba2ff248d7a1a2bb_cs4ttt4k\hospital\backend
+[04:47:35] ACCEPTED: patient_service.py (Path: C:\Users\Dhwannya\AppData\Local\Temp\repo_upload_09e8fff1238647d7ba2ff248d7a1a2bb_cs4ttt4k\hospital\backend\patient_service.py)
+[04:47:35] Walking directory: C:\Users\Dhwannya\AppData\Local\Temp\repo_upload_09e8fff1238647d7ba2ff248d7a1a2bb_cs4ttt4k\hospital\database
+[04:47:35] Checking file: schema.sql in C:\Users\Dhwannya\AppData\Local\Temp\repo_upload_09e8fff1238647d7ba2ff248d7a1a2bb_cs4ttt4k\hospital\database
+[04:47:35] ACCEPTED: schema.sql (Path: C:\Users\Dhwannya\AppData\Local\Temp\repo_upload_09e8fff1238647d7ba2ff248d7a1a2bb_cs4ttt4k\hospital\database\schema.sql)
+[04:47:35] Walking directory: C:\Users\Dhwannya\AppData\Local\Temp\repo_upload_09e8fff1238647d7ba2ff248d7a1a2bb_cs4ttt4k\hospital\frontend
+[04:47:35] Walking directory: C:\Users\Dhwannya\AppData\Local\Temp\repo_upload_09e8fff1238647d7ba2ff248d7a1a2bb_cs4ttt4k\hospital\frontend\src
+[04:47:35] Walking directory: C:\Users\Dhwannya\AppData\Local\Temp\repo_upload_09e8fff1238647d7ba2ff248d7a1a2bb_cs4ttt4k\hospital\frontend\src\api
+[04:47:35] Checking file: healthApi.ts in C:\Users\Dhwannya\AppData\Local\Temp\repo_upload_09e8fff1238647d7ba2ff248d7a1a2bb_cs4ttt4k\hospital\frontend\src\api
+[04:47:35] ACCEPTED: healthApi.ts (Path: C:\Users\Dhwannya\AppData\Local\Temp\repo_upload_09e8fff1238647d7ba2ff248d7a1a2bb_cs4ttt4k\hospital\frontend\src\api\healthApi.ts)
+[04:47:35] Walking directory: C:\Users\Dhwannya\AppData\Local\Temp\repo_upload_09e8fff1238647d7ba2ff248d7a1a2bb_cs4ttt4k\hospital\frontend\src\components
+[04:47:35] Checking file: AppointmentBooking.tsx in C:\Users\Dhwannya\AppData\Local\Temp\repo_upload_09e8fff1238647d7ba2ff248d7a1a2bb_cs4ttt4k\hospital\frontend\src\components
+[04:47:35] ACCEPTED: AppointmentBooking.tsx (Path: C:\Users\Dhwannya\AppData\Local\Temp\repo_upload_09e8fff1238647d7ba2ff248d7a1a2bb_cs4ttt4k\hospital\frontend\src\components\AppointmentBooking.tsx)
+[04:47:35] Checking file: PatientDashboard.tsx in C:\Users\Dhwannya\AppData\Local\Temp\repo_upload_09e8fff1238647d7ba2ff248d7a1a2bb_cs4ttt4k\hospital\frontend\src\components
+[04:47:35] ACCEPTED: PatientDashboard.tsx (Path: C:\Users\Dhwannya\AppData\Local\Temp\repo_upload_09e8fff1238647d7ba2ff248d7a1a2bb_cs4ttt4k\hospital\frontend\src\components\PatientDashboard.tsx)
+[04:47:35] Walking directory: C:\Users\Dhwannya\AppData\Local\Temp\repo_upload_09e8fff1238647d7ba2ff248d7a1a2bb_cs4ttt4k\hospital\{database,backend,frontend
+[04:47:35] Walking directory: C:\Users\Dhwannya\AppData\Local\Temp\repo_upload_09e8fff1238647d7ba2ff248d7a1a2bb_cs4ttt4k\hospital\{database,backend,frontend\src
+[04:47:35] Walking directory: C:\Users\Dhwannya\AppData\Local\Temp\repo_upload_09e8fff1238647d7ba2ff248d7a1a2bb_cs4ttt4k\hospital\{database,backend,frontend\src\{components,api}}
+FILE FOUND: hospital/backend/appointment_service.py | LAYERS: database, backend, api | PRIMARY: database
+FILE FOUND: hospital/backend/doctor_service.py | LAYERS: database, backend, api | PRIMARY: database
+FILE FOUND: hospital/backend/patient_service.py | LAYERS: database, backend, api | PRIMARY: database
+FILE FOUND: hospital/database/schema.sql | LAYERS: database | PRIMARY: database
+FILE FOUND: hospital/frontend/src/api/healthApi.ts | LAYERS: frontend | PRIMARY: frontend
+FILE FOUND: hospital/frontend/src/components/AppointmentBooking.tsx | LAYERS: frontend | PRIMARY: frontend
+FILE FOUND: hospital/frontend/src/components/PatientDashboard.tsx | LAYERS: frontend | PRIMARY: frontend
+Starting comprehensive edge detection...
+Link: hospital/frontend/src/api/healthApi.ts calls API hospital/backend/patient_service.py::endpoint::/patients/{id}
+Link: hospital/frontend/src/api/healthApi.ts calls API hospital/backend/patient_service.py::endpoint::/patients
+Link: hospital/frontend/src/api/healthApi.ts calls API hospital/backend/patient_service.py::endpoint::/patients/{id}
+Link: hospital/frontend/src/api/healthApi.ts calls API hospital/backend/appointment_service.py::endpoint::/appointments
+Link: hospital/frontend/src/api/healthApi.ts calls API hospital/backend/appointment_service.py::endpoint::/appointments/{id}
+Link: hospital/frontend/src/api/healthApi.ts calls API hospital/backend/appointment_service.py::endpoint::/appointments/patient/{patient_id}
+Link: hospital/frontend/src/api/healthApi.ts calls API hospital/backend/doctor_service.py::endpoint::/doctors
+Link: hospital/frontend/src/api/healthApi.ts calls API hospital/backend/doctor_service.py::endpoint::/doctors/{id}
+Link: hospital/frontend/src/components/AppointmentBooking.tsx calls API hospital/backend/doctor_service.py::endpoint::/doctors
+Link: hospital/frontend/src/components/AppointmentBooking.tsx calls API hospital/backend/doctor_service.py::endpoint::/doctors/{id}
+Link: hospital/frontend/src/components/AppointmentBooking.tsx calls API hospital/backend/appointment_service.py::endpoint::/appointments
+Link: hospital/frontend/src/components/AppointmentBooking.tsx calls API hospital/backend/appointment_service.py::endpoint::/appointments/{id}
+Link: hospital/frontend/src/components/AppointmentBooking.tsx calls API hospital/backend/appointment_service.py::endpoint::/appointments/patient/{patient_id}

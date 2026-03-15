@@ -10,8 +10,12 @@ FILE_READ_TIMEOUT_SECONDS = 2  # PRD §8 — parse timeout per file: 2s
 
 def _read_file(abs_path: str) -> str:
     """Read a single file. Called in a thread so it can be timed out."""
-    with open(abs_path, "r", encoding="utf-8", errors="ignore") as f:
-        return f.read()
+    try:
+        with open(abs_path, "r", encoding="utf-8", errors="ignore") as f:
+            return f.read()
+    except Exception as e:
+        print(f"DEBUG: FAIL READ: {abs_path} - {e}")
+        raise e
 
 
 def extract_zip(upload_file_path: str) -> str:
@@ -60,9 +64,9 @@ def read_files_to_dict(repo_path: str, files_to_parse: list[str]) -> dict[str, s
                 content = future.result(timeout=FILE_READ_TIMEOUT_SECONDS)
                 code_map[rel_path] = content
             except FutureTimeoutError:
-                pass
-            except OSError:
-                pass
+                print(f"DEBUG: TIMEOUT READ: {rel_path}")
+            except Exception as e:
+                print(f"DEBUG: ERROR READ {rel_path}: {e}")
 
     # Clean up the entire extracted temp directory now that we hold the content
     shutil.rmtree(repo_path, ignore_errors=True)

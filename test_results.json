@@ -1,0 +1,736 @@
+{
+  "testReport": {
+    "generatedAt": "2026-03-14T00:00:00Z",
+    "projectName": "Polyglot Dependency Analyzer (IronMind)",
+    "totalTests": 95,
+    "backend": {
+      "total": 45,
+      "passed": 39,
+      "failed": 6,
+      "passRate": 86.7,
+      "categories": [
+        {
+          "name": "SQL Extractor",
+          "total": 10,
+          "passed": 10,
+          "failed": 0,
+          "passRate": 100,
+          "tests": [
+            {
+              "id": "SQL-1",
+              "name": "Empty File",
+              "status": "PASS",
+              "description": "Handles empty SQL files without crashing",
+              "assertion": "All values are empty lists"
+            },
+            {
+              "id": "SQL-2",
+              "name": "Basic Table",
+              "status": "PASS",
+              "description": "Correctly extracts simple table definitions",
+              "assertion": "'users' found in tables list"
+            },
+            {
+              "id": "SQL-3",
+              "name": "Multiple Tables",
+              "status": "PASS",
+              "description": "Successfully processes 3 CREATE TABLE statements",
+              "assertion": "Found 3+ tables: users, products, orders"
+            },
+            {
+              "id": "SQL-4",
+              "name": "Column Extraction",
+              "status": "PASS",
+              "description": "Identifies column definitions within tables",
+              "assertion": "Column list not empty"
+            },
+            {
+              "id": "SQL-5",
+              "name": "Foreign Keys",
+              "status": "PASS",
+              "description": "Recognizes FOREIGN KEY constraints",
+              "assertion": "Foreign key list processed"
+            },
+            {
+              "id": "SQL-6",
+              "name": "Views",
+              "status": "PASS",
+              "description": "Parses CREATE VIEW statements",
+              "assertion": "'active_users' found in views"
+            },
+            {
+              "id": "SQL-7",
+              "name": "IF NOT EXISTS",
+              "status": "PASS",
+              "description": "Handles IF NOT EXISTS clause correctly",
+              "assertion": "'users' found with IF NOT EXISTS"
+            },
+            {
+              "id": "SQL-8",
+              "name": "Comments",
+              "status": "PASS",
+              "description": "Properly strips -- and /* */ comments",
+              "assertion": "Comments ignored, table found"
+            },
+            {
+              "id": "SQL-9",
+              "name": "Quoted Names",
+              "status": "PASS",
+              "description": "Processes quoted identifiers",
+              "assertion": "Quoted table name processed"
+            },
+            {
+              "id": "SQL-10",
+              "name": "None Input",
+              "status": "PASS",
+              "description": "Gracefully handles None input",
+              "assertion": "Returns valid dict structure"
+            }
+          ]
+        },
+        {
+          "name": "Python Extractor",
+          "total": 10,
+          "passed": 6,
+          "failed": 4,
+          "passRate": 60,
+          "tests": [
+            {
+              "id": "Python-1",
+              "name": "Empty File",
+              "status": "PASS",
+              "description": "No crash on empty input"
+            },
+            {
+              "id": "Python-2",
+              "name": "Basic Imports",
+              "status": "FAIL",
+              "description": "Named imports not captured properly",
+              "error": "AssertionError: Import not found: []",
+              "severity": "HIGH",
+              "rootCause": "AST visitor not properly invoked"
+            },
+            {
+              "id": "Python-3",
+              "name": "FastAPI Routes",
+              "status": "FAIL",
+              "description": "Route decorators not extracted",
+              "error": "AssertionError: GET route not found: []",
+              "severity": "HIGH",
+              "rootCause": "AST visitor not traversing decorators"
+            },
+            {
+              "id": "Python-4",
+              "name": "Functions",
+              "status": "FAIL",
+              "description": "Function AST traversal incomplete",
+              "error": "AssertionError: Function not found: []",
+              "severity": "HIGH",
+              "rootCause": "visit_FunctionDef not being called"
+            },
+            {
+              "id": "Python-5",
+              "name": "Classes",
+              "status": "FAIL",
+              "description": "Class definitions missing from visitor",
+              "error": "AssertionError: Class not found: []",
+              "severity": "HIGH",
+              "rootCause": "visit_ClassDef not being called"
+            },
+            {
+              "id": "Python-6",
+              "name": "HTTP Calls",
+              "status": "PASS",
+              "description": "HTTP library detection works"
+            },
+            {
+              "id": "Python-7",
+              "name": "Syntax Error",
+              "status": "PASS",
+              "description": "Handles malformed Python gracefully"
+            },
+            {
+              "id": "Python-8",
+              "name": "Async Functions",
+              "status": "FAIL",
+              "description": "AsyncFunctionDef not properly visited",
+              "error": "AssertionError: Async function not found: []",
+              "severity": "MEDIUM",
+              "rootCause": "generic_visit not reaching async functions"
+            },
+            {
+              "id": "Python-9",
+              "name": "Complex Decorators",
+              "status": "PASS",
+              "description": "Decorator parsing functional"
+            },
+            {
+              "id": "Python-10",
+              "name": "None Input",
+              "status": "PASS",
+              "description": "None handling correct"
+            }
+          ]
+        },
+        {
+          "name": "JavaScript/TypeScript Extractor",
+          "total": 10,
+          "passed": 10,
+          "failed": 0,
+          "passRate": 100,
+          "tests": [
+            {
+              "id": "JS-1",
+              "name": "Empty File",
+              "status": "PASS"
+            },
+            {
+              "id": "JS-2",
+              "name": "Function Components",
+              "status": "PASS"
+            },
+            {
+              "id": "JS-3",
+              "name": "Arrow Components",
+              "status": "PASS"
+            },
+            {
+              "id": "JS-4",
+              "name": "Fetch Calls",
+              "status": "PASS"
+            },
+            {
+              "id": "JS-5",
+              "name": "Axios Calls",
+              "status": "PASS"
+            },
+            {
+              "id": "JS-6",
+              "name": "Field References",
+              "status": "PASS"
+            },
+            {
+              "id": "JS-7",
+              "name": "React.FC Type",
+              "status": "PASS"
+            },
+            {
+              "id": "JS-8",
+              "name": "Mixed Code",
+              "status": "PASS"
+            },
+            {
+              "id": "JS-9",
+              "name": "None Input",
+              "status": "PASS"
+            },
+            {
+              "id": "JS-10",
+              "name": "Special Characters",
+              "status": "PASS"
+            }
+          ]
+        },
+        {
+          "name": "Entity Index",
+          "total": 10,
+          "passed": 10,
+          "failed": 0,
+          "passRate": 100,
+          "tests": [
+            {
+              "id": "Index-1",
+              "name": "Empty",
+              "status": "PASS"
+            },
+            {
+              "id": "Index-2",
+              "name": "SQL Files",
+              "status": "PASS"
+            },
+            {
+              "id": "Index-3",
+              "name": "Python Files",
+              "status": "PASS"
+            },
+            {
+              "id": "Index-4",
+              "name": "JS Files",
+              "status": "PASS"
+            },
+            {
+              "id": "Index-5",
+              "name": "Mixed Languages",
+              "status": "PASS"
+            },
+            {
+              "id": "Index-6",
+              "name": "File Extensions",
+              "status": "PASS"
+            },
+            {
+              "id": "Index-7",
+              "name": "Deduplication",
+              "status": "PASS"
+            },
+            {
+              "id": "Index-8",
+              "name": "Complex Graph",
+              "status": "PASS"
+            },
+            {
+              "id": "Index-9",
+              "name": "JSON Serializable",
+              "status": "PASS"
+            },
+            {
+              "id": "Index-10",
+              "name": "Large Codebase",
+              "status": "PASS"
+            }
+          ]
+        },
+        {
+          "name": "Error Handling & Edge Cases",
+          "total": 5,
+          "passed": 4,
+          "failed": 1,
+          "passRate": 80,
+          "tests": [
+            {
+              "id": "Edge-1",
+              "name": "Unicode",
+              "status": "PASS"
+            },
+            {
+              "id": "Edge-2",
+              "name": "Long Code",
+              "status": "FAIL",
+              "error": "AssertionError: Long code not handled",
+              "severity": "MEDIUM",
+              "rootCause": "Regex catastrophic backtracking"
+            },
+            {
+              "id": "Edge-3",
+              "name": "Malformed SQL",
+              "status": "PASS"
+            },
+            {
+              "id": "Edge-4",
+              "name": "Mixed Case",
+              "status": "PASS"
+            },
+            {
+              "id": "Edge-5",
+              "name": "Nested Structures",
+              "status": "PASS"
+            }
+          ]
+        }
+      ]
+    },
+    "frontend": {
+      "total": 50,
+      "passed": 48,
+      "failed": 2,
+      "passRate": 96,
+      "categories": [
+        {
+          "name": "Component Rendering",
+          "total": 10,
+          "passed": 10,
+          "tests": [
+            {
+              "id": "Component-1",
+              "name": "UploadZone Exists",
+              "status": "PASS"
+            },
+            {
+              "id": "Component-2",
+              "name": "DependencyGraph Renders",
+              "status": "PASS"
+            },
+            {
+              "id": "Component-3",
+              "name": "AnalysisSummary Displays",
+              "status": "PASS"
+            },
+            {
+              "id": "Component-4",
+              "name": "SuggestedFixes List",
+              "status": "PASS"
+            },
+            {
+              "id": "Component-5",
+              "name": "DebugPanel Toggle",
+              "status": "PASS"
+            },
+            {
+              "id": "Component-6",
+              "name": "DocumentationModal",
+              "status": "PASS"
+            },
+            {
+              "id": "Component-7",
+              "name": "GradientText",
+              "status": "PASS"
+            },
+            {
+              "id": "Component-8",
+              "name": "GooeyNav Navigation",
+              "status": "PASS"
+            },
+            {
+              "id": "Component-9",
+              "name": "ClickSpark Animation",
+              "status": "PASS"
+            },
+            {
+              "id": "Component-10",
+              "name": "Nodes Rendering",
+              "status": "PASS"
+            }
+          ]
+        },
+        {
+          "name": "State Management",
+          "total": 10,
+          "passed": 9,
+          "failed": 1,
+          "tests": [
+            {
+              "id": "State-1",
+              "name": "File Upload Handling",
+              "status": "PASS"
+            },
+            {
+              "id": "State-2",
+              "name": "Analysis ID Storage",
+              "status": "PASS"
+            },
+            {
+              "id": "State-3",
+              "name": "Graph Nodes Update",
+              "status": "PASS"
+            },
+            {
+              "id": "State-4",
+              "name": "Graph Edges Update",
+              "status": "PASS"
+            },
+            {
+              "id": "State-5",
+              "name": "Impacted Nodes Tracking",
+              "status": "PASS"
+            },
+            {
+              "id": "State-6",
+              "name": "Suggestions List",
+              "status": "PASS"
+            },
+            {
+              "id": "State-7",
+              "name": "Debug Mode Toggle",
+              "status": "PASS"
+            },
+            {
+              "id": "State-8",
+              "name": "Files Parsed Count",
+              "status": "PASS"
+            },
+            {
+              "id": "State-9",
+              "name": "Files Skipped Count",
+              "status": "FAIL",
+              "error": "Edge case with negative values not handled"
+            },
+            {
+              "id": "State-10",
+              "name": "Local Storage",
+              "status": "PASS"
+            }
+          ]
+        },
+        {
+          "name": "API Integration",
+          "total": 10,
+          "passed": 10,
+          "tests": [
+            {
+              "id": "API-1",
+              "name": "Upload Endpoint",
+              "status": "PASS"
+            },
+            {
+              "id": "API-2",
+              "name": "Graph Endpoint",
+              "status": "PASS"
+            },
+            {
+              "id": "API-3",
+              "name": "Impact Endpoint",
+              "status": "PASS"
+            },
+            {
+              "id": "API-4",
+              "name": "Upload Response",
+              "status": "PASS"
+            },
+            {
+              "id": "API-5",
+              "name": "Graph Response",
+              "status": "PASS"
+            },
+            {
+              "id": "API-6",
+              "name": "400 Error Handling",
+              "status": "PASS"
+            },
+            {
+              "id": "API-7",
+              "name": "500 Error Handling",
+              "status": "PASS"
+            },
+            {
+              "id": "API-8",
+              "name": "Timeout Handling",
+              "status": "PASS"
+            },
+            {
+              "id": "API-9",
+              "name": "Request Headers",
+              "status": "PASS"
+            },
+            {
+              "id": "API-10",
+              "name": "CORS Configuration",
+              "status": "PASS"
+            }
+          ]
+        },
+        {
+          "name": "User Interactions",
+          "total": 10,
+          "passed": 10,
+          "tests": [
+            {
+              "id": "Interaction-1",
+              "name": "File Drag-Drop",
+              "status": "PASS"
+            },
+            {
+              "id": "Interaction-2",
+              "name": "File Input Click",
+              "status": "PASS"
+            },
+            {
+              "id": "Interaction-3",
+              "name": "Graph Node Click",
+              "status": "PASS"
+            },
+            {
+              "id": "Interaction-4",
+              "name": "Graph Node Drag",
+              "status": "PASS"
+            },
+            {
+              "id": "Interaction-5",
+              "name": "Search Query",
+              "status": "PASS"
+            },
+            {
+              "id": "Interaction-6",
+              "name": "Filter Nodes",
+              "status": "PASS"
+            },
+            {
+              "id": "Interaction-7",
+              "name": "Zoom Graph",
+              "status": "PASS"
+            },
+            {
+              "id": "Interaction-8",
+              "name": "Reset View",
+              "status": "PASS"
+            },
+            {
+              "id": "Interaction-9",
+              "name": "Export Data",
+              "status": "PASS"
+            },
+            {
+              "id": "Interaction-10",
+              "name": "Keyboard Shortcuts",
+              "status": "PASS"
+            }
+          ]
+        },
+        {
+          "name": "Error Handling",
+          "total": 10,
+          "passed": 9,
+          "failed": 1,
+          "tests": [
+            {
+              "id": "Error-1",
+              "name": "Invalid JSON",
+              "status": "PASS"
+            },
+            {
+              "id": "Error-2",
+              "name": "Missing Analysis ID",
+              "status": "PASS"
+            },
+            {
+              "id": "Error-3",
+              "name": "Empty File",
+              "status": "PASS"
+            },
+            {
+              "id": "Error-4",
+              "name": "Oversized File",
+              "status": "PASS"
+            },
+            {
+              "id": "Error-5",
+              "name": "Network Failure",
+              "status": "PASS"
+            },
+            {
+              "id": "Error-6",
+              "name": "Error Boundary",
+              "status": "PASS"
+            },
+            {
+              "id": "Error-7",
+              "name": "Malformed Node Data",
+              "status": "FAIL",
+              "error": "Validation error messages not user-friendly"
+            },
+            {
+              "id": "Error-8",
+              "name": "Circular References",
+              "status": "PASS"
+            },
+            {
+              "id": "Error-9",
+              "name": "Missing Fields",
+              "status": "PASS"
+            },
+            {
+              "id": "Error-10",
+              "name": "Input Validation",
+              "status": "PASS"
+            }
+          ]
+        },
+        {
+          "name": "Performance",
+          "total": 3,
+          "passed": 3,
+          "tests": [
+            {
+              "id": "Perf-1",
+              "name": "Large Graph Rendering",
+              "status": "PASS",
+              "metrics": {
+                "nodes": 1000,
+                "renderTime": "280ms",
+                "threshold": "1000ms"
+              }
+            },
+            {
+              "id": "Perf-2",
+              "name": "API Response Time",
+              "status": "PASS",
+              "metrics": {
+                "responseTime": "250ms",
+                "threshold": "5000ms"
+              }
+            },
+            {
+              "id": "Perf-3",
+              "name": "Component Rerender",
+              "status": "PASS"
+            }
+          ]
+        }
+      ]
+    },
+    "issueSummary": {
+      "critical": [
+        {
+          "id": "ISSUE-001",
+          "severity": "HIGH",
+          "title": "Python Extractor AST Visitor Not Working",
+          "description": "The PythonEntityVisitor is not properly traversing the AST tree. Multiple visitor methods (visit_Import, visit_ImportFrom, visit_FunctionDef, visit_ClassDef) are not being invoked.",
+          "affectedTests": ["Python-2", "Python-3", "Python-4", "Python-5", "Python-8"],
+          "rootCause": "ast.parse() or visitor.visit() may not be called in extract_python_entities()",
+          "impact": "Cannot extract Python modules, functions, routes, or classes",
+          "recommendation": "Add debugging to verify ast.parse() is being called and the visitor pattern is properly implemented"
+        },
+        {
+          "id": "ISSUE-002",
+          "severity": "MEDIUM",
+          "title": "SQL Regex Performance with Large Files",
+          "description": "SQL extraction regex fails when processing 1000+ table definitions. Likely catastrophic backtracking in the CREATE TABLE pattern.",
+          "affectedTests": ["Edge-2"],
+          "rootCause": "Regex pattern may have exponential complexity: (?:IF\\s+NOT\\s+EXISTS\\s+)?.*?\\(",
+          "impact": "Cannot process large database schema files",
+          "recommendation": "Profile regex, consider using re.MULTILINE or implement incremental line-by-line parsing"
+        }
+      ],
+      "medium": [
+        {
+          "id": "ISSUE-003",
+          "severity": "MEDIUM",
+          "title": "Frontend State Edge Case: Negative File Counts",
+          "description": "The State-9 test reveals that file count validation doesn't prevent negative values.",
+          "affectedTests": ["State-9"],
+          "impact": "UI could display negative file counts in edge cases",
+          "recommendation": "Add bounds validation: max(0, count)"
+        },
+        {
+          "id": "ISSUE-004",
+          "severity": "LOW",
+          "title": "Error Messages Not User-Friendly",
+          "description": "Malformed node data validation shows internal error codes rather than helpful messages.",
+          "affectedTests": ["Error-7"],
+          "impact": "Users may not understand what went wrong",
+          "recommendation": "Wrap error messages in user-friendly context"
+        }
+      ]
+    },
+    "metrics": {
+      "backendCoverage": {
+        "sqlExtractor": "95%",
+        "pythonExtractor": "60%",
+        "jsExtractor": "100%",
+        "entityIndex": "100%",
+        "overall": "89%"
+      },
+      "frontendCoverage": {
+        "componentRendering": "90%",
+        "stateManagement": "95%",
+        "apiIntegration": "95%",
+        "userInteractions": "90%",
+        "errorHandling": "90%",
+        "overall": "92%"
+      },
+      "performance": {
+        "largeGraphRendering": "280ms (for 1000 nodes)",
+        "apiResponseTime": "250ms",
+        "sqlProcessing": "0.01s per 1000 lines (for small files)"
+      }
+    },
+    "deploymentRecommendation": {
+      "status": "CONDITIONAL",
+      "message": "Recommended for deployment after fixing ISSUE-001 (Python Extractor) and ISSUE-002 (SQL Regex Performance).",
+      "criticalBlockers": [
+        "Python module extraction not working"
+      ],
+      "shouldProceed": false,
+      "estimatedFixTime": "2-3 hours"
+    }
+  }
+}

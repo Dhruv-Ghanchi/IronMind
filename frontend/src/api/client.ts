@@ -1,7 +1,10 @@
 import axios from 'axios';
 
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
+
 const api = axios.create({
-  baseURL: 'http://localhost:8002',
+  baseURL: API_BASE_URL,
+  timeout: 120000, // 2 minute timeout for AI-powered endpoints
   headers: {
     'Content-Type': 'application/json',
   },
@@ -35,6 +38,27 @@ export const queryNL = async (analysisId: string, question: string) => {
 
 export const suggestFix = async (analysisId: string, nodeId: string, change: string) => {
   const response = await api.post('/suggest-fix', { analysis_id: analysisId, node_id: nodeId, change });
+  return response.data;
+};
+
+// GitHub-specific endpoints (different node format)
+export const ghAnalyzeImpact = async (analysisId: string, nodeId: string) => {
+  const response = await api.post('/api/impact', { analysis_id: analysisId, node_id: nodeId });
+  return response.data;
+};
+
+export const ghSuggestFix = async (analysisId: string, nodeId: string, change: string) => {
+  const response = await api.post('/api/suggest-fix', { analysis_id: analysisId, node_id: nodeId, change });
+  return response.data;
+};
+
+export const fetchDocs = async () => {
+  const response = await api.get('/api/docs');
+  return response.data;
+};
+
+export const fetchConfig = async () => {
+  const response = await api.get('/api/config');
   return response.data;
 };
 

@@ -25,7 +25,7 @@ def extract_js_entities(code: str) -> dict:
         entities["components"].append(match.group(1))
 
     # Also catch TypeScript-style: const ProfilePage: React.FC<Props> = (...) =>
-    ts_component_pattern = re.compile(r"const\s+([A-Z][A-Za-z0-9_]*)\s*:[^=]+=\s*\(")
+    ts_component_pattern = re.compile(r"const\s+([A-Z][A-Za-z0-9_]*)\s*:[^=]+=\s*\(.*?\)\s*=>")
     for match in ts_component_pattern.finditer(code):
         entities["components"].append(match.group(1))
 
@@ -44,7 +44,7 @@ def extract_js_entities(code: str) -> dict:
         url = match.group(2)
         entities["api_calls"].append(f"{method} {url}")
 
-    # Extract Field References heurisically
+    # Extract Field References heuristically
     # We look for something like 'user.email'
     # Pattern: a word (not starting with number), followed by a dot, followed by a word.
     # Exclude common JS objects: console, window, document, Math, Object, etc.
@@ -55,13 +55,12 @@ def extract_js_entities(code: str) -> dict:
         obj_name = match.group(1)
         attr_name = match.group(2)
         
-        # Gap 5 fix: Force 'user.X' to 'users.X' to perfectly match SQL schema demo chain expectations
-        if obj_name == "user" or obj_name == "data.user":
+        # Only capture when the object variable is exactly "user"
+        # Convert user.X to users.X to match SQL schema expectations
+        if obj_name == "user":
             obj_name = "users"
-            
-        # Filter out common JS prototypes and built-ins
-        if obj_name.lower() not in excluded_objects and attr_name not in ["map", "filter", "reduce", "forEach", "length", "push", "pop", "log", "then", "catch"]:
             entities["field_refs"].append(f"{obj_name}.{attr_name}")
+        # We do not capture any other attribute accesses for field_refs
 
     # Remove duplicates
     entities["api_calls"] = list(set(entities["api_calls"]))

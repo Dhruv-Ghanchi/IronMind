@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Polyglot Code Analyzer</title>
+    <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polygon points="12 2 2 7 12 12 22 7 12 2"></polygon>
+                <polyline points="2 17 12 22 22 17"></polyline>
+                <polyline points="2 12 12 17 22 12"></polyline>
+            </svg>
+            <h2>Polyglot Analyzer</h2>
+        </header>
+
+        <!-- Main Content Area -->
+        <main id="mainContent">
+            <!-- Starting Repository Info -->
+            <div id="repoInfo" class="hidden text-center fade-in">
+                <p class="repo-label">Target Repository</p>
+                <h3 id="repoName" class="repo-name">owner/repo</h3>
+                <button id="analyzeBtn" class="primary-btn pulse">Scan Codebase</button>
+            </div>
+
+            <!-- Loading State -->
+            <div id="statusContainer" class="hidden status-area fade-in">
+                <div class="loader"></div>
+                <p id="statusMessage">Connecting to backend...</p>
+            </div>
+
+            <!-- Error Notification -->
+            <div id="errorContainer" class="hidden error-area fade-in">
+                <svg class="error-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <line x1="12" y1="8" x2="12" y2="12"></line>
+                    <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                </svg>
+                <p id="errorMessage">An unexpected network failure occurred.</p>
+                <button id="retryBtn" class="secondary-btn">Try Again</button>
+            </div>
+
+            <!-- Pre-Analysis File Statistics -->
+            <div id="statsContainer" class="hidden stats-area fade-in">
+                <h4>Extracted Architecture</h4>
+                <div class="stat-grid">
+                    <div class="stat-card py">
+                        <span class="ext">.py</span>
+                        <span class="count" id="countPy">0</span>
+                    </div>
+                    <div class="stat-card ts">
+                        <span class="ext">.ts/.js</span>
+                        <span class="count" id="countTs">0</span>
+                    </div>
+                    <div class="stat-card sql">
+                        <span class="ext">.sql</span>
+                        <span class="count" id="countSql">0</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Success Trigger -->
+            <div id="successContainer" class="hidden success-area fade-in">
+                <p class="success-msg">Graph processing complete!</p>
+                <button id="viewDetailBtn" class="primary-btn glow">View in Detail</button>
+            </div>
+
+            <!-- Invalid Page Hook -->
+            <div id="notGithubContainer" class="hidden text-center fade-in">
+                <p class="warning-msg">Please open a public repository on github.com</p>
+            </div>
+        </main>
+    </div>
+    <script src="popup.js"></script>
+</body>
+</html>

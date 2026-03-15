@@ -1,0 +1,34 @@
+[
+  {
+    "title": "Welcome",
+    "id": "overview",
+    "content": "Welcome to Polyglot Analyzer. Our mission is to provide a 'Pull & Play' experience for understanding complex codebase dependencies across SQL, Python, and JavaScript/TypeScript."
+  },
+  {
+    "title": "Core Engine",
+    "id": "architecture",
+    "content": "The system maps entities across 4 layers: Database → Backend → API → Frontend. This allows tracing the impact of a database schema change all the way to the UI components that consume it.",
+    "subsections": [
+      { "title": "4-Layer Model", "id": "layers" },
+      { "title": "Node Types", "id": "node-types" }
+    ]
+  },
+  {
+    "title": "Zero-Config Sync",
+    "id": "dynamic-config",
+    "content": "No manual configuration is required for your team. The system uses a centralized backend API for auto-discovery and persists your preferences (like Dev Mode) in localStorage.",
+    "subsections": [
+      { "title": "Auto-Discovery", "id": "auto-discovery" },
+      { "title": "Preference Persistence", "id": "persistence" }
+    ]
+  },
+  {
+    "title": "Debug Dashboard",
+    "id": "debug-mode",
+    "content": "The Dev Mode provides a real-time grid dashboard showing graph metrics, connectivity status, and raw entity data for deep-dive analysis.",
+    "subsections": [
+      { "title": "Grid Metrics", "id": "grid-metrics" },
+      { "title": "System Status", "id": "system-status" }
+    ]
+  }
+]

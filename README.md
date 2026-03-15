@@ -5,6 +5,57 @@ A GenAI-assisted developer intelligence tool that analyzes polyglot repositories
 
 ---
 
+## Getting Started
+
+### Architecture
+This application consists of three components:
+- **Main Backend** (FastAPI) - Port 8000
+- **GitHub Analyzer Backend** (FastAPI) - Port 8001
+- **Frontend** (React + Vite) - Port 5173
+
+### Installation
+
+#### 1. Main Backend (Port 8000)
+```bash
+cd backend
+pip install -r requirements.txt
+uvicorn main:app --reload --port 8000
+```
+
+#### 2. GitHub Analyzer Backend (Port 8001)
+```bash
+cd github-analyzer/backend
+pip install -r requirements.txt
+uvicorn main:app --reload --port 8001
+```
+
+#### 3. Frontend (Port 5173)
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+The application will be available at `http://localhost:5173`
+
+### Usage
+
+#### Option 1: ZIP Upload
+1. Navigate to `http://localhost:5173`
+2. Upload a repository ZIP file (max 40MB)
+3. View the dependency graph, impact analysis, and AI suggestions
+
+#### Option 2: GitHub URL
+1. Navigate to `http://localhost:5173`
+2. Enter a GitHub repository URL (e.g., `github.com/owner/repo`)
+3. Optionally provide a GitHub token for private repos and PR creation
+4. Use the **Consequence Engine** panel to:
+   - Analyze impact of changes
+   - Generate patches with AI assistance
+   - Create Pull Requests directly to GitHub
+
+---
+
 ## Hackathon objective
 Build a stable MVP in **14 hours** that can:
 - accept a ZIP repository upload

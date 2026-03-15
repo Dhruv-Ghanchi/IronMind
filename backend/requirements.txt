@@ -4,3 +4,7 @@ python-multipart
 sqlalchemy
 pydantic
 pytest
+neo4j
+httpx
+openai
+python-dotenv

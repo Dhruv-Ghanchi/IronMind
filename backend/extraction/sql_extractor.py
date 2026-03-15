@@ -1,13 +1,13 @@
 import re
 
 def extract_sql_entities(code: str) -> dict:
-    # Guard against None input
-    if code is None:
-        return {"tables": [], "columns": [], "foreign_keys": [], "views": []}
     """
     Extract tables, columns, foreign_keys, and views from SQL code.
     This works by using regular expressions on common DDL statements.
     """
+    # Guard against None input
+    if code is None:
+        return {"tables": [], "columns": [], "foreign_keys": [], "views": []}
     entities = {
         "tables": [],
         "columns": [],
@@ -52,20 +52,20 @@ def extract_sql_entities(code: str) -> dict:
             table_body = match.group(2)
         else:
             # Fallback if no trailing semicolon is found quickly
-            match_no_semi = re.search(r"^([^\s(]+)\s*\((.*)\)", block, re.IGNORECASE | re.DOTALL)
+            match_no_semi = re.search(r"^([^\s(]+)\s*\((.*?)\)", block, re.IGNORECASE | re.DOTALL)
             if match_no_semi:
                 table_name = match_no_semi.group(1).strip("`\"'")
                 table_body = match_no_semi.group(2)
             else:
                 continue
-                
+        
         # Now looking inside table_body for columns and foreign keys
         lines = table_body.split(',')
         for line in lines:
             line = line.strip()
             if not line:
                 continue
-                
+            
             # Check for PRIMARY KEY, UNIQUE, FOREIGN KEY constraints directly
             if re.match(r"^(PRIMARY|UNIQUE)\s+KEY", line, re.IGNORECASE) or \
                re.match(r"^CONSTRAINT", line, re.IGNORECASE):
@@ -84,7 +84,7 @@ def extract_sql_entities(code: str) -> dict:
                 ref_col = fk_match2.group(2).strip("`\"'")
                 entities["foreign_keys"].append(f"{ref_table}.{ref_col}")
                 continue
-                
+            
             # It's a column definition
             col_match = re.match(r"^([^\s]+)", line)
             if col_match:
@@ -92,7 +92,7 @@ def extract_sql_entities(code: str) -> dict:
                 # format as table.column
                 if col_name.upper() not in ["PRIMARY", "UNIQUE", "FOREIGN", "CONSTRAINT", "KEY", "CHECK"]:
                     entities["columns"].append(f"{table_name}.{col_name}")
-                    
+                
                 # Look for inline REFERENCES
                 inline_fk = re.search(r"REFERENCES\s+([^\s(]+)\s*\(([^)]+)\)", line, re.IGNORECASE)
                 if inline_fk:

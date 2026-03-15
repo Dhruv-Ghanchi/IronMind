@@ -1,5 +1,5 @@
-import { useState, useCallback, useEffect, useRef, ReactNode } from 'react';
-import { motion, useMotionValue, useAnimationFrame, useTransform } from 'motion/react';
+import { useState, useCallback, useEffect, useRef, type ReactNode } from 'react';
+import { useMotionValue, useAnimationFrame, useTransform } from 'framer-motion';
 import './GradientText.css';
 
 interface GradientTextProps {
@@ -60,7 +60,7 @@ export default function GradientText({
   const backgroundPositionX = useTransform(progress, (p) => `${p}% 50%`);
 
   useEffect(() => {
-    const unsubscribe = backgroundPositionX.onChange((value) => {
+    const unsubscribe = backgroundPositionX.on("change", (value) => {
       if (spanRef.current) {
         spanRef.current.style.backgroundPosition = value;
       }

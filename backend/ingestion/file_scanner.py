@@ -1,26 +1,22 @@
 import os
 import time
 
-ALLOWED_EXTENSIONS = {'.py', '.js', '.ts', '.jsx', '.tsx', '.sql'}
-IGNORED_DIRECTORIES = {'node_modules', 'dist', 'build', 'venv', '.git', '__pycache__', '.next', 'coverage', 'out'}
-MAX_SCANNED_FILES = 500
-MAX_PARSED_FILES = 180
-SCAN_TIMEOUT_SECONDS = 25   # PRD §8 — graceful cutoff at 25s
-SCAN_WARN_SECONDS = 20      # PRD §8 — target analysis time < 20s
-
+ALLOWED_EXTENSIONS = {'.py', '.js', '.ts', '.jsx', '.tsx', '.sql', '.html', '.db', '.css', '.json', '.md', '.txt', '.java', '.go', '.c', '.cpp', '.h', '.cs', '.php', '.rb'}
+IGNORED_DIRECTORIES = {'node_modules', 'dist', 'build', 'venv', '.git', '__pycache__', '.next', 'coverage', 'out', 'target', 'bin'}
+MAX_SCANNED_FILES = 1000
+MAX_PARSED_FILES = 200
+SCAN_TIMEOUT_SECONDS = 25
 
 def scan_directory(repo_path: str) -> dict:
     """
-    Traverses the extracted repository.
+    Traverses the repository.
     Filters out ignored directories and unsupported extensions.
-    Enforces hard limits: 500 max scanned, 180 max parsed, 25s timeout.
-
-    Returns a dict with:
-        files_to_parse  — relative paths of supported files to hand to Dev 2
+    Returns:
+        files_to_parse  — relative paths of supported files
         skipped         — count of files not included
-        supported       — count of files that matched and are within limit
-        scanned         — total files inspected (before limit)
-        timed_out       — True if the 25s wall-clock limit was hit
+        supported       — count of files matched
+        scanned         — total files inspected
+        timed_out       — True if limit hit
     """
     files_to_parse = []
     skipped = 0
@@ -31,17 +27,16 @@ def scan_directory(repo_path: str) -> dict:
     start_time = time.time()
 
     for root, dirs, files in os.walk(repo_path):
-        # Filter ignored directories in-place — they are never traversed
+        # 1. Filter ignored directories
         dirs[:] = [d for d in dirs if d not in IGNORED_DIRECTORIES]
         
         for file in files:
-            # ── Hard timeout check (PRD §8: graceful cutoff at 25s) ──────────
-            elapsed = time.time() - start_time
-            if elapsed > SCAN_TIMEOUT_SECONDS:
+            # 2. Hard timeout check
+            if time.time() - start_time > SCAN_TIMEOUT_SECONDS:
                 timed_out = True
-                break  # exit inner loop; outer for/else will also break below
+                break
 
-            # ── Hard scan limit ───────────────────────────────────────────────
+            # 3. Hard scan limit
             if scanned >= MAX_SCANNED_FILES:
                 skipped += 1
                 continue
@@ -50,6 +45,7 @@ def scan_directory(repo_path: str) -> dict:
             _, ext = os.path.splitext(file)
             ext = ext.lower()
 
+            # 4. Filter by extension
             if ext in ALLOWED_EXTENSIONS:
                 if len(files_to_parse) < MAX_PARSED_FILES:
                     abs_f = os.path.join(root, file)
@@ -61,9 +57,9 @@ def scan_directory(repo_path: str) -> dict:
                 skipped += 1
 
         if timed_out:
-            break  # exit outer os.walk loop cleanly
+            break
 
-    # Convert absolute paths to relative paths for consistent output
+    # Convert to relative paths
     rel_files_to_parse = [os.path.relpath(f, repo_path) for f in files_to_parse]
 
     return {
