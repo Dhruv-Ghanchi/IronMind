@@ -60,7 +60,7 @@ export default function GradientText({
   const backgroundPositionX = useTransform(progress, (p) => `${p}% 50%`);
 
   useEffect(() => {
-    const unsubscribe = backgroundPositionX.onChange((value) => {
+    const unsubscribe = backgroundPositionX.on("change", (value) => {
       if (spanRef.current) {
         spanRef.current.style.backgroundPosition = value;
       }

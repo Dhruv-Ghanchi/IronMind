@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
 import { UploadZone } from './components/UploadZone';
-import { AnalysisSummary } from './components/AnalysisSummary';
 import { SuggestedFixes } from './components/SuggestedFixes';
 import { DocumentationModal } from './components/DocumentationModal';
 import { DebugPanel } from './components/DebugPanel';
@@ -9,12 +8,20 @@ import GooeyNav from './components/GooeyNav';
 import ClickSpark from './components/ClickSpark';
 import GradientText from './components/GradientText';
 import { Search, ShieldAlert, Layers, Loader2, Sparkles, Star, GitBranch, Code } from 'lucide-react';
-import { uploadRepo, analyzeImpact, getGraph, queryNL, suggestFix, ghAnalyzeImpact, ghSuggestFix } from './api/client';
+import { uploadRepo, analyzeImpact, getGraph, queryNL, suggestFix, ghAnalyzeImpact, ghSuggestFix, fetchConfig } from './api/client';
 import { ReactFlowProvider, type Node, type Edge } from 'reactflow';
+import ErrorBoundary from './components/ErrorBoundary';
+
 
 // Initial Data
 const INITIAL_NODES: Node[] = [];
 const INITIAL_EDGES: Edge[] = [];
+
+interface SystemConfig {
+  debug_mode_default: boolean;
+  featherless_api_status: string;
+  neo4j_status: string;
+}
 
 function App() {
   const [isUploaded, setIsUploaded] = useState(false);
@@ -26,16 +33,41 @@ function App() {
   const [suggestions, setSuggestions] = useState<Array<{ target: string; suggestion: string }>>([]);
   const [isLoadingSuggestions, setIsLoadingSuggestions] = useState(false);
   const [isDocumentationOpen, setIsDocumentationOpen] = useState(false);
-  const [isDebugMode, setIsDebugMode] = useState(false);
+  const [isDebugMode, setIsDebugMode] = useState(() => {
+    return localStorage.getItem('isDebugMode') === 'true';
+  });
+  const [systemConfig, setSystemConfig] = useState<SystemConfig | null>(null);
+
+  useEffect(() => {
+    fetchConfig()
+      .then((config) => {
+        setSystemConfig(config);
+        if (!localStorage.getItem('isDebugMode')) {
+          setIsDebugMode(config.debug_mode_default);
+        }
+      })
+      .catch((err) => {
+        console.error("Failed to fetch system config", err);
+      });
+  }, []);
+
+
+  /* Statistics used by the Debug Dashboard */
   const [filesParsed, setFilesParsed] = useState(0);
   const [filesSkipped, setFilesSkipped] = useState(0);
-  const [nodesCount, setNodesCount] = useState(0);
-  const [edgesCount, setEdgesCount] = useState(0);
   const [queryInput, setQueryInput] = useState('');
   const [queryResult, setQueryResult] = useState<string | null>(null);
   const [isQueryLoading, setIsQueryLoading] = useState(false);
   const [repoMeta, setRepoMeta] = useState<any>(null);
   const [isGithubRepo, setIsGithubRepo] = useState(false);
+  const [nodesCount, setNodesCount] = useState(0); // Added for debug panel
+  const [edgesCount, setEdgesCount] = useState(0); // Added for debug panel
+  const [pipelineLogs, setPipelineLogs] = useState<string[]>([]);
+  const [lastImpactResult, setLastImpactResult] = useState<{ node_id: string; impacted_nodes: string[]; risk_score: number; severity: 'LOW' | 'MEDIUM' | 'HIGH' } | null>(null);
+
+  const addPipelineLog = (message: string) => {
+    setPipelineLogs((prev: string[]) => [...prev, `[${new Date().toLocaleTimeString()}] ${message}`]);
+  };
 
   // Load from localStorage on mount
   useEffect(() => {
@@ -74,6 +106,8 @@ function App() {
 
   const handleUpload = async (file: File) => {
     setIsUploading(true);
+    setPipelineLogs([]);
+    addPipelineLog('ZIP uploaded successfully');
     try {
       // Reset GitHub-specific state for ZIP uploads
       setIsGithubRepo(false);
@@ -84,17 +118,15 @@ function App() {
       setAnalysisId(id);
       setFilesParsed(uploadData.files_parsed || 0);
       setFilesSkipped(uploadData.files_skipped || 0);
+      addPipelineLog(`Files ingested: ${uploadData.files_parsed} parsed, ${uploadData.files_skipped} skipped`);
 
       // Fetch the graph
       const graphData = await getGraph(id);
-      console.log('Raw graph data:', graphData); // Debug log
       if (graphData.nodes) {
-        console.log('Setting nodes:', graphData.nodes.length); // Debug log
         setNodes(graphData.nodes);
       }
       if (graphData.edges) setEdges(graphData.edges);
-      setNodesCount(graphData.summary?.nodes || 0);
-      setEdgesCount(graphData.summary?.edges || 0);
+      addPipelineLog(`Graph built: ${graphData.summary?.nodes || 0} nodes, ${graphData.summary?.edges || 0} edges`);
 
       saveToLocalStorage({
         nodes: graphData.nodes,
@@ -109,6 +141,7 @@ function App() {
       setIsUploaded(true);
     } catch (error) {
       console.error("Upload failed", error);
+      addPipelineLog('❌ Upload failed - See console for details');
       alert("Upload failed. Check console for errors.");
     } finally {
       setIsUploading(false);
@@ -166,6 +199,7 @@ function App() {
     if (analysisId) {
         setImpactedNodeIds([node.id]); // Visual feedback
         setIsLoadingSuggestions(true);
+        addPipelineLog(`Impact analysis run on: ${node.id}`);
         try {
             // Use GitHub-specific endpoints for GitHub repos
             const impactFn = isGithubRepo ? ghAnalyzeImpact : analyzeImpact;
@@ -174,26 +208,16 @@ function App() {
             const impactResult = await impactFn(analysisId, node.id);
             setImpactedNodeIds(impactResult.impacted_nodes || [node.id]);
 
+            // Store impact result for debug panel
+            setLastImpactResult({
+              node_id: node.id,
+              impacted_nodes: impactResult.impacted_nodes || [],
+              risk_score: impactResult.risk_score || 0,
+              severity: (impactResult.severity || 'LOW') as 'LOW' | 'MEDIUM' | 'HIGH'
+            });
+
             const fixResult = await suggestFn(analysisId, node.id, "Impact Analysis");
-            const mappedFixes = fixResult.suggestions.map((s: string) => ({
-                target: node.data?.label || 'Target Node',
-                suggestion: s
-            }));
-            setSuggestions(mappedFixes);
-        } catch (error: any) {
-            console.error("Analysis failed", error);
-            const status = error?.response?.status;
-            if (status === 404) {
-              setSuggestions([{
-                target: node.data?.label || 'Node',
-                suggestion: 'Please upload a repository to analyze'
-              }]);
-            } else {
-              setSuggestions([{
-                target: node.data?.label || 'Node',
-                suggestion: `Analysis failed: ${error?.response?.data?.detail || error?.message || 'Unknown error'}. Try clicking again.`
-              }]);
-            }
+            addPipelineLog(`Found ${impactResult.impacted_nodes?.length || 1} impacted nodes (severity: ${impactResult.severity || 'LOW'})`);
         } finally {
             setIsLoadingSuggestions(false);
         }
@@ -228,8 +252,11 @@ function App() {
 
 
   return (
+    <ErrorBoundary>
     <ClickSpark sparkColor="#6366f1" sparkSize={10} sparkRadius={15} sparkCount={8} duration={400}>
     <div className="min-h-screen bg-dark-900 text-slate-100 font-inter selection:bg-brand-500/30">
+
+
       {/* Header */}
       <nav className="border-b border-white/5 bg-dark-800/50 backdrop-blur-xl sticky top-0 z-50">
         <div className="max-w-[1600px] mx-auto px-6 h-16 flex items-center justify-between">
@@ -250,11 +277,18 @@ function App() {
                 },
                 {
                   label: `Dev Mode ${isDebugMode ? '✓' : ''}`,
-                  onClick: () => { if (isUploaded) setIsDebugMode(!isDebugMode); },
+                  onClick: () => { 
+                    if (isUploaded) {
+                      const newMode = !isDebugMode;
+                      setIsDebugMode(newMode);
+                      localStorage.setItem('isDebugMode', String(newMode));
+                    } 
+                  },
                   type: 'button',
                   isActive: isDebugMode,
                   disabled: !isUploaded
                 }
+
               ]}
               particleCount={12}
               particleDistances={[70, 10]}
@@ -292,13 +326,6 @@ function App() {
           </div>
         ) : (
           <div className="space-y-8 animate-fade-in">
-            <AnalysisSummary
-              filesParsed={filesParsed}
-              filesSkipped={filesSkipped}
-              nodesCount={nodesCount}
-              edgesCount={edgesCount}
-            />
-
             {/* Repo Meta Bar (GitHub only) */}
             {isGithubRepo && repoMeta && (
               <div className="bg-[#1a1a2e] border border-white/10 rounded-lg px-5 py-2 flex items-center justify-between text-[13px]">
@@ -336,7 +363,6 @@ function App() {
                 </a>
               </div>
             )}
-
             <div className="space-y-8">
               {/* Full Width Graph Area */}
               <div className="w-full h-[600px] glass rounded-3xl overflow-hidden border border-white/10">
@@ -493,23 +519,25 @@ function App() {
       <DocumentationModal isOpen={isDocumentationOpen} onClose={() => setIsDocumentationOpen(false)} />
 
       {/* Debug Panel */}
-      {/* Debug Panel - Shows analysis stats when uploaded */}
-      {isUploaded && <DebugPanel 
-          isOpen={isDebugMode} 
-          debugData={{
-            filesScanned: filesParsed + filesSkipped,
-            filesParsed: filesParsed,
-            filesSkipped: filesSkipped,
-            parseFailures: 0,
-            nodesCreated: nodesCount,
-            edgesCreated: edgesCount,
-            analysisTime: 0, // Not tracked yet
-            extractionLogs: []
-          }} 
-      />}
+      {isUploaded && (
+        <DebugPanel
+          isOpen={isDebugMode}
+          analysisId={analysisId || ''}
+          filesParsed={filesParsed}
+          filesSkipped={filesSkipped}
+          nodes={nodes}
+          edges={edges}
+          lastImpactResult={lastImpactResult || undefined}
+          pipelineLogs={pipelineLogs}
+          systemConfig={systemConfig}
+        />
+      )}
     </div>
     </ClickSpark>
+    </ErrorBoundary>
   );
 }
+
+
 
 export default App;

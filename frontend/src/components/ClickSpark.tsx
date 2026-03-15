@@ -1,5 +1,12 @@
 import { useRef, useEffect, useCallback } from 'react';
 
+interface Spark {
+  x: number;
+  y: number;
+  angle: number;
+  startTime: number;
+}
+
 const ClickSpark = ({
   sparkColor = '#fff',
   sparkSize = 10,
@@ -20,7 +27,7 @@ const ClickSpark = ({
   children?: React.ReactNode;
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const sparksRef = useRef<any[]>([]);
+  const sparksRef = useRef<Spark[]>([]);
   const startTimeRef = useRef<number | null>(null);
 
   useEffect(() => {

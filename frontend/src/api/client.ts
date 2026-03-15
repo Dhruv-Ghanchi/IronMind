@@ -52,4 +52,14 @@ export const ghSuggestFix = async (analysisId: string, nodeId: string, change: s
   return response.data;
 };
 
+export const fetchDocs = async () => {
+  const response = await api.get('/api/docs');
+  return response.data;
+};
+
+export const fetchConfig = async () => {
+  const response = await api.get('/api/config');
+  return response.data;
+};
+
 export default api;
