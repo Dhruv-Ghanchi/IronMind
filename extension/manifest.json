@@ -1,0 +1,41 @@
+{
+  "manifest_version": 3,
+  "name": "Polyglot Code Analyzer",
+  "version": "1.1.0",
+  "description": "Scan GitHub repositories and analyze multilingual dependencies instantly.",
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": ["*://github.com/*"],
+      "js": ["contentScript.js"],
+      "run_at": "document_end"
+    }
+  ],
+  "permissions": [
+    "activeTab",
+    "tabs",
+    "storage"
+  ],
+  "host_permissions": [
+    "*://api.github.com/*",
+    "*://raw.githubusercontent.com/*",
+    "http://localhost:8000/*",
+    "http://localhost:5173/*"
+  ]
+}
