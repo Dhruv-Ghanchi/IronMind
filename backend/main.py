@@ -13,12 +13,14 @@ import re
 import json as _json
 import pathlib
 import time
+from urllib.parse import unquote
 from backend.ingestion.zip_handler import extract_zip, read_files_to_dict
 from backend.ingestion.file_scanner import scan_directory
 from neo4j import GraphDatabase
 from . import github_service
 from . import analyzer
 from . import pr_service
+from . import ai_service
 
 app = FastAPI(title="Analysis Backend")
 
@@ -55,9 +57,9 @@ async def http_exception_handler(request, exc):
     )
 
 # Neo4j configuration (PRD §21: persistence)
-NEO4J_URI = os.getenv("NEO4J_URI", "bolt://localhost:7687")
+NEO4J_URI = os.getenv("NEO4J_URI", "neo4j://127.0.0.1:7687")
 NEO4J_USER = os.getenv("NEO4J_USER", "neo4j")
-NEO4J_PASSWORD = os.getenv("NEO4J_PASSWORD", "password")
+NEO4J_PASSWORD = os.getenv("NEO4J_PASSWORD", "neo4j")
 
 try:
     neo4j_driver = GraphDatabase.driver(NEO4J_URI, auth=(NEO4J_USER, NEO4J_PASSWORD))
@@ -82,7 +84,6 @@ class _DiskSessionStore:
         self._dir = directory
 
     def _path(self, key: str) -> pathlib.Path:
-        # Sanitize key to prevent directory traversal
         safe_key = "".join(c for c in key if c.isalnum() or c in "-_.").rstrip()
         return self._dir / f"{safe_key}.json"
 
@@ -115,6 +116,7 @@ class _DiskSessionStore:
         return len(list(self._dir.glob("*.json")))
 
 SESSION_STORE = _DiskSessionStore(_SESSION_DIR)
+sessions: dict = {} # Used by extension endpoints
 
 # PRD §8 hard limit
 MAX_ZIP_SIZE_BYTES = 40 * 1024 * 1024  # 40 MB
@@ -123,6 +125,14 @@ MAX_ZIP_SIZE_BYTES = 40 * 1024 * 1024  # 40 MB
 # ---------------------------------------------------------------------------
 # Request models — match IMPLEMENTATION_PLAN.md contracts exactly
 # ---------------------------------------------------------------------------
+class FilePayload(BaseModel):
+    filepath: str
+    content: str
+
+class UploadTempRequest(BaseModel):
+    repo_name: str
+    files: list[FilePayload]
+
 class GraphRequest(BaseModel):
     analysis_id: str
 
@@ -168,7 +178,7 @@ def parse_code_symbols(code_map: dict):
     symbol_edges = []
     
     # Regex patterns
-    CLASS_PATTERN = re.compile(r'(?:class|export\s+class)\s+([a-zA-Z0-9_]+)(?:\(([^)]+)\))?')
+    CLASS_PATTERN = re.compile(r'(?:class|export\s+class)\s+([a-zA-Z0-9_]+)(?:\(([^)]{0,100})\))?')
     FUNC_PATTERN = re.compile(r'(?:def|async\s+def|function)\s+([a-zA-Z0-9_]+)')
     ENDPOINT_PATTERN = re.compile(r'@app\.(?:get|post|put|delete|patch)\s*\(\s*["\']([^"\']+)["\']')
     HTML_ID_PATTERN = re.compile(r'id=["\']([^"\']+)["\']')
@@ -196,14 +206,20 @@ def parse_code_symbols(code_map: dict):
 
             symbol_id = f"{norm_path}::class::{name}"
             kind = "class"
+            layer_override = None
             if "BaseModel" in bases:
                 kind = "pydantic_model"
+                layer_override = "api"
+            elif any(k in bases for k in ["Base", "Model", "models.Model", "declarative_base"]):
+                kind = "db_model"
+                layer_override = "database"
 
             symbols.append({
                 "id": symbol_id,
                 "label": name,
                 "type": "symbol",
                 "kind": kind,
+                "layer": layer_override,
                 "file": norm_path,
                 "lines": line_count
             })
@@ -232,8 +248,13 @@ def parse_code_symbols(code_map: dict):
 
             symbol_id = f"{norm_path}::func::{name}"
             kind = "function"
-            if is_api: kind = "api_route"
-            elif is_db: kind = "db_function"
+            layer_override = None
+            if is_api: 
+                kind = "api_route"
+                layer_override = "api"
+            elif is_db: 
+                kind = "db_function"
+                layer_override = "database"
             # Rule: BACKEND is default for functions not API/DB in backend files
 
             symbols.append({
@@ -241,6 +262,7 @@ def parse_code_symbols(code_map: dict):
                 "label": name,
                 "type": "symbol",
                 "kind": kind,
+                "layer": layer_override,
                 "file": norm_path,
                 "lines": line_count
             })
@@ -457,7 +479,7 @@ async def upload_repository(
         # 9. Calculate Cross-Layer Edges (fetch, src, href, imports)
         API_CALL_PATTERN = re.compile(r'(?:fetch|axios\.\w+)\s*\(\s*["\']([^"\']+)["\']')
         HTML_REF_PATTERN = re.compile(r'(?:src|href)\s*=\s*["\']([^"\']+)["\']')
-        IMPORT_PATTERN = re.compile(r'(?:import|from|require).*?["\']([^"\']+)["\']|import\s+([a-zA-Z0-9_]+)')
+        IMPORT_PATTERN = re.compile(r'(?:import|from|require)[^"\'\n]{0,100}?["\']([^"\']+)["\']|import\s+([a-zA-Z0-9_]+)')
 
         # 10. NEW: RE-RUN GRID-IFY TO CATCH INFERRED NODES AND SYMBOLS
         for layer in ["database", "backend", "api", "frontend"]:
@@ -549,7 +571,7 @@ async def upload_repository(
                             id=node["id"], label=node["data"]["label"], 
                             layer=node["data"]["layer"], kind=node["data"]["nodeClass"]
                         )
-                    for edge in edges:
+                    for edge in symbol_edges:
                         session.run(
                             "MATCH (a:Node {id: $src}), (b:Node {id: $tgt}) "
                             "MERGE (a)-[r:REL {type: $type}]->(b)",
@@ -717,7 +739,7 @@ async def analyze_impact(body: ImpactRequest):
     queue = [body.node_id]
     while queue:
         current = queue.pop(0)
-        for edge in edges:
+        for edge in symbol_edges:
             # 1. Incoming Dependencies (If target is current, source is impacted)
             if edge["target"] == current and edge["source"] not in impacted_nodes:
                 impacted_nodes.append(edge["source"])
@@ -1117,3 +1139,143 @@ async def suggest_fixes(body: SuggestFixRequest):
         "suggestions": suggestions
     }
 
+
+
+# ---------------------------------------------------------------------------
+# Endpoint for Chrome Extension upload  (POST /upload_temp)
+# ---------------------------------------------------------------------------
+@app.post("/upload_temp")
+async def upload_temp_repo(payload: UploadTempRequest):
+    """
+    Accepts raw mapped files straight from the Chrome Extension.
+    """
+    try:
+        valid_files = [f for f in payload.files if f.content and f.content.strip()]
+        if not valid_files:
+            raise HTTPException(status_code=400, detail="No readable code contents provided.")
+
+        analysis_id = str(uuid.uuid4())
+        
+        ACCEPTED_EXTS = {".py", ".java", ".go", ".js", ".ts", ".jsx", ".tsx", ".html", ".css", ".sql", ".db"}
+        
+        # 1. SCAN AND FILTER: Add only accepted files to the processing map
+        accepted_code_map = {}
+        nodes = []
+        edges = []
+        file_layers = {}
+
+        for f in valid_files:
+            decoded_content = unquote(f.content)
+            normalized_path = f.filepath.replace('\\', '/')
+            ext = os.path.splitext(normalized_path)[1].lower()
+
+            # Process only accepted code file types to increment layer counts!
+            if ext in ACCEPTED_EXTS:
+                accepted_code_map[f.filepath] = decoded_content
+
+                content_lower = decoded_content.lower()
+                detected_layers = []
+
+                if ext in [".sql", ".db"]:
+                    detected_layers.append("database")
+                elif ext in [".html", ".css", ".jsx", ".tsx"]:
+                    detected_layers.append("frontend")
+                elif ext in [".py", ".java", ".go"]:
+                    if any(k in content_lower for k in ["fastapi", "flask", "django", "router.", "@app.get", "@app.post"]):
+                        detected_layers.append("api")
+                    else:
+                        detected_layers.append("backend")
+                elif ext in [".js", ".ts"]:
+                    if any(k in content_lower for k in ["import react", "export default", "<div", "reactdom"]):
+                        detected_layers.append("frontend")
+                    elif any(k in content_lower for k in ["express()", "app.get", "app.post", "router."]):
+                        detected_layers.append("api")
+                    else:
+                        detected_layers.append("backend")
+
+                layer = detected_layers[0] if detected_layers else "backend" 
+                
+                # Increment the Layer Count internally by generating the File Node
+                file_layers[normalized_path] = layer
+                nodes.append({
+                    "id": str(uuid.uuid4())[:8],
+                    "data": {"label": os.path.basename(normalized_path), "nodeClass": "fileNode", "layer": layer},
+                    "layer": layer,
+                    "type": "fileNode",
+                    "label": os.path.basename(normalized_path)
+                })
+
+        # 2. EXTRACT ENTITIES AND CONNECTIONS: Scan those *accepted* files
+        symbols, symbol_edges = parse_code_symbols(accepted_code_map)
+
+        # 3. ASSIGN ENTITIES: Assign extracted entities to their parent file's respective layer
+        for sym in symbols:
+            file_layer = file_layers.get(sym.get("file", ""), "backend")
+            final_layer = sym.get("layer") or file_layer
+            nodes.append({
+                "id": sym["id"],
+                "data": {"label": sym["label"], "nodeClass": sym["kind"], "layer": final_layer},
+                "layer": final_layer,
+                "type": "fileNode",
+                "label": sym["label"]
+            })
+
+        # Persist to Neo4j IF available
+        if neo4j_driver:
+            try:
+                with neo4j_driver.session() as session:
+                    session.run("MATCH (n) DETACH DELETE n")
+                    for node in nodes:
+                        session.run(
+                            "MERGE (f:Node {id: $id, label: $label, layer: $layer, kind: $kind})",
+                            id=node["id"], label=node["data"]["label"], 
+                            layer=node["data"]["layer"], kind=node["data"]["nodeClass"]
+                        )
+                    for edge in symbol_edges:
+                        session.run(
+                            "MATCH (a:Node {id: $src}), (b:Node {id: $tgt}) "
+                            "MERGE (a)-[r:REL {type: $type}]->(b)",
+                            src=edge["source"], tgt=edge["target"], type=edge.get("type", "DEPENDS_ON")
+                        )
+            except Exception as e:
+                print(f"DEBUG: Neo4j persistence failed: {e}")
+
+        # Store results in SESSION_STORE
+        analysis_id = f"session-{uuid.uuid4().hex[:8]}"
+        SESSION_STORE[analysis_id] = {
+            "code_map": accepted_code_map,
+            "nodes": nodes,
+            "edges": symbol_edges,
+            "scan_summary": {"skipped": len(payload.files) - len(accepted_code_map)}
+        }
+
+        # New global session map as requested
+        sessions[analysis_id] = {
+            "repo_name": payload.repo_name,
+            "files": [{"filepath": f.filepath, "content": unquote(f.content)} for f in payload.files],
+            "graph": {
+                "nodes": nodes,
+                "edges": symbol_edges,
+                "summary": {"nodes": len(nodes), "edges": len(symbol_edges)}
+            }
+        }
+        return {
+            "analysis_id": analysis_id,
+            "files_parsed": len(accepted_code_map),
+            "files_skipped": len(payload.files) - len(accepted_code_map),
+            "message": "Deep Analysis complete"
+        }
+    except Exception as e:
+        print(f"Error in upload_temp_repo: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+
+# Duplicate endpoints removed during merge
+@app.get("/session/{session_id}")
+async def get_session(session_id: str):
+    if session_id in sessions:
+        return sessions[session_id]
+    if session_id in SESSION_STORE:
+        return {"detail": "Session exists but graph hasn't been cached natively."}
+    raise HTTPException(status_code=404, detail="Session not found")

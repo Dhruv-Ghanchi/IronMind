@@ -1,0 +1,261 @@
+:root {
+  --bg-color: #0f172a;
+  --panel-bg: #1e293b;
+  --text-main: #f8fafc;
+  --text-muted: #94a3b8;
+  --accent: #3b82f6;
+  --accent-hover: #2563eb;
+  --success: #10b981;
+  --error: #ef4444;
+  
+  --py-color: #3776ab;
+  --ts-color: #3178c6;
+  --sql-color: #f29111;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  width: 330px;
+  min-height: 260px;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  background-color: var(--bg-color);
+  color: var(--text-main);
+  overflow-x: hidden;
+}
+
+.container {
+  padding: 16px;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid #334155;
+  margin-bottom: 18px;
+}
+
+.header h2 {
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  color: #e2e8f0;
+}
+
+.icon {
+  width: 24px;
+  height: 24px;
+  color: var(--accent);
+}
+
+.hidden {
+  display: none !important;
+}
+
+.text-center {
+  text-align: center;
+}
+
+/* Animations */
+.fade-in {
+  animation: fadeIn 0.3s ease-in-out forwards;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(5px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Base Repository Styles */
+.repo-label {
+  font-size: 11px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 6px;
+}
+
+.repo-name {
+  font-size: 15px;
+  font-weight: 600;
+  margin-bottom: 18px;
+  word-break: break-word;
+  color: #e2e8f0;
+  background: var(--panel-bg);
+  padding: 8px 12px;
+  border-radius: 6px;
+  border: 1px solid #334155;
+}
+
+/* Buttons */
+.primary-btn, .secondary-btn {
+  width: 100%;
+  padding: 12px;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  display: block; /* ensure block sizing */
+}
+
+.primary-btn {
+  background-color: var(--accent);
+  color: #ffffff;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+}
+
+.primary-btn:hover {
+  background-color: var(--accent-hover);
+  transform: translateY(-1px);
+}
+
+.secondary-btn {
+  background-color: transparent;
+  color: var(--text-muted);
+  border: 1px solid var(--text-muted);
+  margin-top: 12px;
+}
+
+.secondary-btn:hover {
+  background-color: #334155;
+  color: #ffffff;
+  border-color: #475569;
+}
+
+/* Loader Mechanics */
+.status-area {
+  text-align: center;
+  padding: 24px 0;
+}
+
+.loader {
+  border: 3px solid #334155;
+  border-top: 3px solid var(--accent);
+  border-radius: 50%;
+  width: 28px;
+  height: 28px;
+  animation: spin 0.85s linear infinite;
+  margin: 0 auto 16px;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+#statusMessage {
+  font-size: 13px;
+  color: var(--text-muted);
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+/* Warnings and Errors */
+.warning-msg {
+  color: var(--text-muted);
+  font-size: 14px;
+  padding: 24px 0;
+  line-height: 1.5;
+}
+
+.error-area {
+  text-align: center;
+  padding: 12px 0;
+}
+
+.error-icon {
+  width: 36px;
+  height: 36px;
+  color: var(--error);
+  margin-bottom: 12px;
+}
+
+#errorMessage {
+  font-size: 13px;
+  color: var(--error);
+  margin-bottom: 16px;
+  line-height: 1.4;
+}
+
+/* Stats Layout */
+.stats-area {
+  background: var(--panel-bg);
+  border-radius: 10px;
+  padding: 16px;
+  margin-bottom: 20px;
+  border: 1px solid #334155;
+}
+
+.stats-area h4 {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-muted);
+  margin-bottom: 12px;
+  text-align: center;
+}
+
+.stat-grid {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.stat-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background: var(--bg-color);
+  padding: 10px;
+  border-radius: 8px;
+  flex: 1;
+  border: 1px solid #1e293b;
+}
+
+.ext {
+  font-size: 11px;
+  font-weight: 700;
+  opacity: 0.9;
+  letter-spacing: 0.5px;
+}
+
+.count {
+  font-size: 18px;
+  font-weight: 600;
+  margin-top: 6px;
+  color: #e2e8f0;
+}
+
+.py .ext { color: var(--py-color); }
+.ts .ext { color: var(--ts-color); }
+.sql .ext { color: var(--sql-color); }
+
+/* Success & Glow Features */
+.success-area {
+  text-align: center;
+}
+
+.success-msg {
+  color: var(--success);
+  font-weight: 600;
+  margin-bottom: 16px;
+  font-size: 15px;
+}
+
+.glow {
+  animation: glow-animation 2.5s infinite;
+}
+
+@keyframes glow-animation {
+  0% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.4); }
+  70% { box-shadow: 0 0 0 6px rgba(59, 130, 246, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0); }
+}
