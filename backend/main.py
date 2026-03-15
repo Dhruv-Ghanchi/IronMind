@@ -6,10 +6,11 @@ import tempfile
 import os
 import uuid
 import re
-from backend.ingestion.zip_handler import extract_zip, read_files_to_dict
-from backend.ingestion.file_scanner import scan_directory
+from urllib.parse import unquote
+from ingestion.zip_handler import extract_zip, read_files_to_dict
+from ingestion.file_scanner import scan_directory
 from neo4j import GraphDatabase
-from . import ai_service
+import ai_service
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -36,9 +37,9 @@ app.add_middleware(
 )
 
 # Neo4j configuration (PRD §21: persistence)
-NEO4J_URI = os.getenv("NEO4J_URI", "bolt://localhost:7687")
+NEO4J_URI = os.getenv("NEO4J_URI", "neo4j://127.0.0.1:7687")
 NEO4J_USER = os.getenv("NEO4J_USER", "neo4j")
-NEO4J_PASSWORD = os.getenv("NEO4J_PASSWORD", "password")
+NEO4J_PASSWORD = os.getenv("NEO4J_PASSWORD", "neo4j")
 
 try:
     neo4j_driver = GraphDatabase.driver(NEO4J_URI, auth=(NEO4J_USER, NEO4J_PASSWORD))
@@ -60,6 +61,7 @@ except Exception as e:
 # repo_path is NOT stored — extracted dir is deleted immediately after reading.
 # ---------------------------------------------------------------------------
 SESSION_STORE: dict = {}
+sessions: dict = {}
 
 # PRD §8 hard limit
 MAX_ZIP_SIZE_BYTES = 40 * 1024 * 1024  # 40 MB
@@ -68,6 +70,14 @@ MAX_ZIP_SIZE_BYTES = 40 * 1024 * 1024  # 40 MB
 # ---------------------------------------------------------------------------
 # Request models — match IMPLEMENTATION_PLAN.md contracts exactly
 # ---------------------------------------------------------------------------
+class FilePayload(BaseModel):
+    filepath: str
+    content: str
+
+class UploadTempRequest(BaseModel):
+    repo_name: str
+    files: list[FilePayload]
+
 class GraphRequest(BaseModel):
     analysis_id: str
 
@@ -96,7 +106,7 @@ def parse_code_symbols(code_map: dict):
     symbol_edges = []
     
     # Regex patterns
-    CLASS_PATTERN = re.compile(r'(?:class|export\s+class)\s+([a-zA-Z0-9_]+)(?:\(([^)]+)\))?')
+    CLASS_PATTERN = re.compile(r'(?:class|export\s+class)\s+([a-zA-Z0-9_]+)(?:\(([^)]{0,100})\))?')
     FUNC_PATTERN = re.compile(r'(?:def|async\s+def|function)\s+([a-zA-Z0-9_]+)')
     ENDPOINT_PATTERN = re.compile(r'@app\.(?:get|post|put|delete|patch)\s*\(\s*["\']([^"\']+)["\']')
     HTML_ID_PATTERN = re.compile(r'id=["\']([^"\']+)["\']')
@@ -124,14 +134,20 @@ def parse_code_symbols(code_map: dict):
 
             symbol_id = f"{norm_path}::class::{name}"
             kind = "class"
+            layer_override = None
             if "BaseModel" in bases:
                 kind = "pydantic_model"
+                layer_override = "api"
+            elif any(k in bases for k in ["Base", "Model", "models.Model", "declarative_base"]):
+                kind = "db_model"
+                layer_override = "database"
 
             symbols.append({
                 "id": symbol_id,
                 "label": name,
                 "type": "symbol",
                 "kind": kind,
+                "layer": layer_override,
                 "file": norm_path,
                 "lines": line_count
             })
@@ -160,8 +176,13 @@ def parse_code_symbols(code_map: dict):
 
             symbol_id = f"{norm_path}::func::{name}"
             kind = "function"
-            if is_api: kind = "api_route"
-            elif is_db: kind = "db_function"
+            layer_override = None
+            if is_api: 
+                kind = "api_route"
+                layer_override = "api"
+            elif is_db: 
+                kind = "db_function"
+                layer_override = "database"
             # Rule: BACKEND is default for functions not API/DB in backend files
 
             symbols.append({
@@ -169,6 +190,7 @@ def parse_code_symbols(code_map: dict):
                 "label": name,
                 "type": "symbol",
                 "kind": kind,
+                "layer": layer_override,
                 "file": norm_path,
                 "lines": line_count
             })
@@ -385,7 +407,7 @@ async def upload_repository(
         # 9. Calculate Cross-Layer Edges (fetch, src, href, imports)
         API_CALL_PATTERN = re.compile(r'(?:fetch|axios\.\w+)\s*\(\s*["\']([^"\']+)["\']')
         HTML_REF_PATTERN = re.compile(r'(?:src|href)\s*=\s*["\']([^"\']+)["\']')
-        IMPORT_PATTERN = re.compile(r'(?:import|from|require).*?["\']([^"\']+)["\']|import\s+([a-zA-Z0-9_]+)')
+        IMPORT_PATTERN = re.compile(r'(?:import|from|require)[^"\'\n]{0,100}?["\']([^"\']+)["\']|import\s+([a-zA-Z0-9_]+)')
 
         # 10. NEW: RE-RUN GRID-IFY TO CATCH INFERRED NODES AND SYMBOLS
         for layer in ["database", "backend", "api", "frontend"]:
@@ -477,7 +499,7 @@ async def upload_repository(
                             id=node["id"], label=node["data"]["label"], 
                             layer=node["data"]["layer"], kind=node["data"]["nodeClass"]
                         )
-                    for edge in edges:
+                    for edge in symbol_edges:
                         session.run(
                             "MATCH (a:Node {id: $src}), (b:Node {id: $tgt}) "
                             "MERGE (a)-[r:REL {type: $type}]->(b)",
@@ -616,7 +638,7 @@ async def analyze_impact(body: ImpactRequest):
     queue = [body.node_id]
     while queue:
         current = queue.pop(0)
-        for edge in edges:
+        for edge in symbol_edges:
             # 1. Incoming Dependencies (If target is current, source is impacted)
             if edge["target"] == current and edge["source"] not in impacted_nodes:
                 impacted_nodes.append(edge["source"])
@@ -792,3 +814,431 @@ async def suggest_fixes(body: SuggestFixRequest):
         "suggestions": suggestions
     }
 
+
+
+# ---------------------------------------------------------------------------
+# Endpoint for Chrome Extension upload  (POST /upload_temp)
+# ---------------------------------------------------------------------------
+@app.post("/upload_temp")
+async def upload_temp_repo(payload: UploadTempRequest):
+    """
+    Accepts raw mapped files straight from the Chrome Extension.
+    """
+    try:
+        valid_files = [f for f in payload.files if f.content and f.content.strip()]
+        if not valid_files:
+            raise HTTPException(status_code=400, detail="No readable code contents provided.")
+
+        analysis_id = str(uuid.uuid4())
+        
+        ACCEPTED_EXTS = {".py", ".java", ".go", ".js", ".ts", ".jsx", ".tsx", ".html", ".css", ".sql", ".db"}
+        
+        # 1. SCAN AND FILTER: Add only accepted files to the processing map
+        accepted_code_map = {}
+        nodes = []
+        edges = []
+        file_layers = {}
+
+        for f in valid_files:
+            decoded_content = unquote(f.content)
+            normalized_path = f.filepath.replace('\\', '/')
+            ext = os.path.splitext(normalized_path)[1].lower()
+
+            # Process only accepted code file types to increment layer counts!
+            if ext in ACCEPTED_EXTS:
+                accepted_code_map[f.filepath] = decoded_content
+
+                content_lower = decoded_content.lower()
+                detected_layers = []
+
+                if ext in [".sql", ".db"]:
+                    detected_layers.append("database")
+                elif ext in [".html", ".css", ".jsx", ".tsx"]:
+                    detected_layers.append("frontend")
+                elif ext in [".py", ".java", ".go"]:
+                    if any(k in content_lower for k in ["fastapi", "flask", "django", "router.", "@app.get", "@app.post"]):
+                        detected_layers.append("api")
+                    else:
+                        detected_layers.append("backend")
+                elif ext in [".js", ".ts"]:
+                    if any(k in content_lower for k in ["import react", "export default", "<div", "reactdom"]):
+                        detected_layers.append("frontend")
+                    elif any(k in content_lower for k in ["express()", "app.get", "app.post", "router."]):
+                        detected_layers.append("api")
+                    else:
+                        detected_layers.append("backend")
+
+                layer = detected_layers[0] if detected_layers else "backend" 
+                
+                # Increment the Layer Count internally by generating the File Node
+                file_layers[normalized_path] = layer
+                nodes.append({
+                    "id": str(uuid.uuid4())[:8],
+                    "data": {"label": os.path.basename(normalized_path), "nodeClass": "fileNode", "layer": layer},
+                    "layer": layer,
+                    "type": "fileNode",
+                    "label": os.path.basename(normalized_path)
+                })
+
+        # 2. EXTRACT ENTITIES AND CONNECTIONS: Scan those *accepted* files
+        symbols, symbol_edges = parse_code_symbols(accepted_code_map)
+
+        # 3. ASSIGN ENTITIES: Assign extracted entities to their parent file's respective layer
+        for sym in symbols:
+            file_layer = file_layers.get(sym.get("file", ""), "backend")
+            final_layer = sym.get("layer") or file_layer
+            nodes.append({
+                "id": sym["id"],
+                "data": {"label": sym["label"], "nodeClass": sym["kind"], "layer": final_layer},
+                "layer": final_layer,
+                "type": "fileNode",
+                "label": sym["label"]
+            })
+
+        # Persist to Neo4j IF available
+        if neo4j_driver:
+            try:
+                with neo4j_driver.session() as session:
+                    session.run("MATCH (n) DETACH DELETE n")
+                    for node in nodes:
+                        session.run(
+                            "MERGE (f:Node {id: $id, label: $label, layer: $layer, kind: $kind})",
+                            id=node["id"], label=node["data"]["label"], 
+                            layer=node["data"]["layer"], kind=node["data"]["nodeClass"]
+                        )
+                    for edge in symbol_edges:
+                        session.run(
+                            "MATCH (a:Node {id: $src}), (b:Node {id: $tgt}) "
+                            "MERGE (a)-[r:REL {type: $type}]->(b)",
+                            src=edge["source"], tgt=edge["target"], type=edge.get("type", "DEPENDS_ON")
+                        )
+            except Exception as e:
+                print(f"DEBUG: Neo4j persistence failed: {e}")
+
+        # Store results in SESSION_STORE
+        analysis_id = f"session-{uuid.uuid4().hex[:8]}"
+        SESSION_STORE[analysis_id] = {
+            "code_map": accepted_code_map,
+            "nodes": nodes,
+            "edges": symbol_edges,
+            "scan_summary": {"skipped": len(payload.files) - len(accepted_code_map)}
+        }
+
+        # New global session map as requested
+        sessions[analysis_id] = {
+            "repo_name": payload.repo_name,
+            "files": [{"filepath": f.filepath, "content": unquote(f.content)} for f in payload.files],
+            "graph": {
+                "nodes": nodes,
+                "edges": symbol_edges,
+                "summary": {"nodes": len(nodes), "edges": len(symbol_edges)}
+            }
+        }
+        return {
+            "analysis_id": analysis_id,
+            "files_parsed": len(accepted_code_map),
+            "files_skipped": len(payload.files) - len(accepted_code_map),
+            "message": "Deep Analysis complete"
+        }
+    except Exception as e:
+        print(f"Error in upload_temp_repo: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+
+# ---------------------------------------------------------------------------
+# Debug endpoint to check session store
+# ---------------------------------------------------------------------------
+@app.get("/debug/sessions")
+async def debug_sessions():
+    """Debug endpoint to see what's in session store"""
+    return {
+        "session_count": len(SESSION_STORE),
+        "session_ids": list(SESSION_STORE.keys()),
+        "sessions": {
+            session_id: {
+                "files_count": len(data.get("code_map", {})),
+                "files": list(data.get("code_map", {}).keys())[:10],  # First 10 file names
+                "scan_summary": data.get("scan_summary", {})
+            }
+            for session_id, data in SESSION_STORE.items()
+        }
+    }
+
+
+# ---------------------------------------------------------------------------
+# Endpoint 2 — Build graph  (POST /graph)   [basic implementation]
+# ---------------------------------------------------------------------------
+@app.post("/graph")
+async def build_graph(body: GraphRequest):
+    """Structured graph building from uploaded code using Hybrid Engine (Neo4j or In-Memory)."""
+    if body.analysis_id not in SESSION_STORE:
+        raise HTTPException(status_code=404, detail="analysis_id not found. Upload a repo first.")
+
+    session_data = SESSION_STORE[body.analysis_id]
+    
+    # Try getting from Neo4j first for most accurate/persisted state
+    if neo4j_driver:
+        try:
+            nodes = []
+            edges = []
+            with neo4j_driver.session() as session:
+                result = session.run("MATCH (n:Node) RETURN n")
+                for record in result:
+                    n = record["n"]
+                    layer = n["layer"]
+                    nodes.append({
+                        "id": n["id"], "type": "fileNode", 
+                        "position": {"x": 0, "y": 0}, # Will grid next
+                        "data": {"label": n["label"], "fullPath": n["id"], "nodeClass": n["kind"], "layer": layer, "lines": 0}
+                    })
+                
+                # Grid-ify Neo4j nodes
+                for layer in ["database", "backend", "api", "frontend"]:
+                    layer_nodes = [node for node in nodes if node["data"]["layer"] == layer]
+                    for i, node in enumerate(layer_nodes):
+                        base_x = 0 if layer == "database" else 600 if layer == "backend" else 1200 if layer == "api" else 1800
+                        col = i % 3
+                        row = i // 3
+                        node["position"] = {"x": base_x + (col * 300), "y": row * 150}
+
+                result = session.run("MATCH (a:Node)-[r]->(b:Node) RETURN a.id, b.id, type(r) as rel_type")
+                for record in result:
+                    edges.append({
+                        "id": f"{record['a.id']}->{record['b.id']}", "source": record["a.id"], "target": record["b.id"],
+                        "type": "smoothstep", "animated": record["rel_type"] != "CONTAINS", 
+                        "style": {"stroke": "#475569" if record["rel_type"] != "CONTAINS" else "#94a3b8", "strokeWidth": 2 if record["rel_type"] != "CONTAINS" else 1}
+                    })
+            if nodes: # If Neo4j gave us something, use it
+                return {"nodes": nodes, "edges": edges, "summary": {"nodes": len(nodes), "edges": len(edges)}}
+        except Exception as e:
+            print(f"DEBUG: Neo4j retrieval failed, falling back to memory: {e}")
+
+    # Fallback to in-memory stored results
+    return {
+        "nodes": session_data.get("nodes", []),
+        "edges": session_data.get("edges", []),
+        "summary": {"nodes": len(session_data.get("nodes", [])), "edges": len(session_data.get("edges", []))}
+    }
+
+
+# ---------------------------------------------------------------------------
+# Endpoint 3 — Impact analysis  (POST /impact)  [skeleton for Dev 3]
+# ---------------------------------------------------------------------------
+@app.post("/impact")
+async def analyze_impact(body: ImpactRequest):
+    """Recursive impact analysis using Neo4j OR Depth-First-Search in memory."""
+    if body.analysis_id not in SESSION_STORE:
+        raise HTTPException(status_code=404, detail="analysis_id not found. Upload a repo first.")
+
+    session_data = SESSION_STORE[body.analysis_id]
+    impacted_nodes = [body.node_id]
+
+    # Try Neo4j Recursive Query
+    if neo4j_driver:
+        try:
+            with neo4j_driver.session() as session:
+                # Use generic Node label and follow all relationship types
+                query = "MATCH (target:Node {id: $node_id})<-[:REL*]-(impacted) RETURN DISTINCT impacted.id"
+                result = session.run(query, node_id=body.node_id)
+                for record in result:
+                    if record["impacted.id"] not in impacted_nodes:
+                        impacted_nodes.append(record["impacted.id"])
+                if len(impacted_nodes) > 1:
+                    return {"impacted_nodes": impacted_nodes, "risk_score": len(impacted_nodes) * 1.5, "severity": "HIGH" if len(impacted_nodes) > 5 else "MEDIUM", "explanation": f"Recursive analysis found {len(impacted_nodes)} nodes (files, functions, classes) that may be impacted."}
+        except Exception as e:
+            print(f"DEBUG: Neo4j impact analysis failed: {e}")
+
+    # Fallback: Bi-directional In-memory Search
+    edges = session_data.get("edges", [])
+    queue = [body.node_id]
+    while queue:
+        current = queue.pop(0)
+        for edge in symbol_edges:
+            # 1. Incoming Dependencies (If target is current, source is impacted)
+            if edge["target"] == current and edge["source"] not in impacted_nodes:
+                impacted_nodes.append(edge["source"])
+                queue.append(edge["source"])
+            
+            # 2. Outgoing Containment (If source is current and it's a CONTAINS edge, target is impacted)
+            if edge["source"] == current and edge.get("kind") == "CONTAINS" and edge["target"] not in impacted_nodes:
+                impacted_nodes.append(edge["target"])
+                queue.append(edge["target"])
+
+    return {
+        "impacted_nodes": impacted_nodes,
+        "risk_score": len(impacted_nodes) * 1.5,
+        "severity": "HIGH" if len(impacted_nodes) > 5 else "MEDIUM",
+        "explanation": f"Architectural analysis found {len(impacted_nodes)} nodes (files, functions, symbols) that will be lost or broken by this change."
+    }
+
+
+# ---------------------------------------------------------------------------
+# Endpoint 4 — NL query  (POST /query)  [basic implementation]
+# ---------------------------------------------------------------------------
+@app.post("/query")
+async def natural_language_query(body: QueryRequest):
+    """Smarter query handling with Neo4j and content-aware search."""
+    if body.analysis_id not in SESSION_STORE:
+        raise HTTPException(status_code=404, detail="analysis_id not found. Upload a repo first.")
+
+    session_data = SESSION_STORE[body.analysis_id]
+    code_map = session_data["code_map"]
+    question = body.question.lower()
+
+    matched_nodes = []
+    answer_parts = []
+    
+    # 1. Structural Query with Neo4j
+    if neo4j_driver:
+        with neo4j_driver.session() as session:
+            # Search for symbols, endpoints or files matching keywords
+            query_terms = [word for word in question.split() if len(word) > 3]
+            for term in query_terms:
+                result = session.run(
+                    "MATCH (n:Node) WHERE n.label CONTAINS $term RETURN n.id, n.label, n.kind LIMIT 5",
+                    term=term
+                )
+                for record in result:
+                    if record["n.id"] not in matched_nodes:
+                        matched_nodes.append(record["n.id"])
+                        if record["n.kind"] in ["function", "class", "route"]:
+                            answer_parts.append(f"I found a {record['n.kind']} named '{record['n.label']}'.")
+
+            # Dependency/Impact logic
+            if "depend" in question or "use" in question or "impact" in question:
+                for n_id in list(matched_nodes):
+                    res = session.run(
+                        "MATCH (target:Node {id: $id})<-[:REL*]-(impacted) RETURN impacted.id LIMIT 5",
+                        id=n_id
+                    )
+                    impact_list = [r["impacted.id"] for r in res]
+                    if impact_list:
+                        answer_parts.append(f"Nodes that use/depend on this: {', '.join([i.split('/')[-1] for i in impact_list[:3]])}.")
+
+    # 2. Direct File Name Matching
+    for file_path in code_map.keys():
+        basename = file_path.split('/')[-1].lower()
+        if basename in question or (len(basename.split('.')) > 1 and basename.split('.')[0] in question):
+            if file_path not in matched_nodes:
+                matched_nodes.append(file_path)
+            
+    # 3. Keyword Content Search
+    keywords = [word for word in question.split() if len(word) > 3]
+    for file_path, content in code_map.items():
+        if any(kw in content.lower() for kw in keywords):
+            if file_path not in matched_nodes and len(matched_nodes) < 15:
+                matched_nodes.append(file_path)
+    
+    # 4. Final Answer Assembly
+    if "remove" in question or "delete" in question:
+        for node in matched_nodes:
+            # Look for nodes that depend on or are contained by this
+            impact_res = await analyze_impact(ImpactRequest(analysis_id=body.analysis_id, node_id=node))
+            count = len(impact_res["impacted_nodes"])
+            if count > 1:
+                answer_parts.insert(0, f"⚠️ WARNING: Removing '{node.split('/')[-1]}' is a high-risk action. It has a blast radius of {count} nodes (internal symbols and external dependencies).")
+
+    if not answer_parts:
+        if "auth" in question or "login" in question or "user" in question:
+            auth_files = [f for f in matched_nodes if any(k in f.lower() for k in ["auth", "login", "user", "session"])]
+            if auth_files:
+                answer_parts.append(f"I found {len(auth_files)} files related to authentication: {', '.join([f.split('/')[-1] for f in auth_files[:3]])}.")
+        elif "database" in question or "db" in question or "sql" in question:
+            db_files = [f for f in matched_nodes if f.endswith('.sql') or "db" in f.lower() or "schema" in f.lower()]
+            if db_files:
+                answer_parts.append(f"Database logic seems to be in: {', '.join([f.split('/')[-1] for f in db_files[:3]])}.")
+
+    # Neural Search using ai_service
+    graph_context = f"Matched files: {', '.join(matched_nodes[:10])}. Files analyzed: {len(code_map)}."
+    ai_answer = ai_service.answer_query(body.question, graph_context)
+    if ai_answer:
+        answer_parts.insert(0, f"🤖 ARCHITECT BRAIN:\n{ai_answer}")
+
+    return {
+        "answer": "\n\n".join(answer_parts) if answer_parts else "I found some relevant files. Check them out in the graph!",
+        "matched_nodes": matched_nodes[:15]
+    }
+
+
+# ---------------------------------------------------------------------------
+# Endpoint 5 — Suggested fixes  (POST /suggest-fix)  [skeleton for Dev 2/3]
+# ---------------------------------------------------------------------------
+@app.post("/suggest-fix")
+async def suggest_fixes(body: SuggestFixRequest):
+    """Provides context-aware architectural fixes based on node impact."""
+    if body.analysis_id not in SESSION_STORE:
+        raise HTTPException(status_code=404, detail="analysis_id not found. Upload a repo first.")
+    
+    session_data = SESSION_STORE[body.analysis_id]
+    nodes = session_data.get("nodes", [])
+    
+    # Find the target node
+    target_node = next((n for n in nodes if n["id"] == body.node_id), None)
+    if not target_node:
+        return {"suggestions": ["Node not found in current analysis."]}
+
+    # Performance impact analysis for suggestion context
+    impact_res = await analyze_impact(ImpactRequest(analysis_id=body.analysis_id, node_id=body.node_id))
+    blast_radius = len(impact_res.get("impacted_nodes", []))
+    
+    node_class = target_node["data"].get("nodeClass", "code")
+    node_layer = target_node["data"].get("layer", "backend")
+    node_name = target_node["data"].get("label", "entity")
+
+    suggestions = []
+
+    # 1. Structural / Layer Suggestions
+    if blast_radius > 10:
+        suggestions.append(f"⚠️ HIGH RISK:\n{node_name} is a central hub. Consider decoupling into smaller sub-modules to reduce blast radius.")
+    
+    if node_layer == "database":
+        suggestions.append(f"🛠️ DB OPTIMIZATION:\nEnsure '{node_name}' has appropriate indexing to handle cross-layer queries from {blast_radius} dependent nodes.")
+        suggestions.append("🔍 INTEGRITY:\nVerify that foreign key constraints reflect the relationships shown in the dependency graph.")
+    
+    elif node_class == "route":
+        suggestions.append(f"🌐 API DESIGN:\nAdd request throttling to '{node_name}' as it exposes your system to multiple entry points.")
+        suggestions.append("🛡️ SECURITY:\nImplement strict JWT or Session validation before processing logic for this endpoint.")
+
+    elif node_class == "function":
+        suggestions.append(f"⚡ COMPOSITION:\nThis function affects {blast_radius} nodes. Consider using the 'Strategy Pattern' to make the logic more modular.")
+        suggestions.append("🧪 TESTING:\nSince this is a core logic node, ensure unit tests cover at least 90% of its internal branches.")
+
+    else:
+        suggestions.append(f"📦 REFACTORING:\nReview '{node_name}' for circular dependencies. It currently sits in a chain of {blast_radius} connected objects.")
+
+    # AI-Powered Architectural Explanations and Patches (ai_service)
+    affected_files = impact_res.get("impacted_nodes", [])
+    
+    # 1. Impact Explanation
+    explanation = ai_service.explain_impact(node_name, affected_files)
+    if explanation:
+        suggestions.append(f"🔍 ARCHITECT IMPACT:\n{explanation}")
+
+    # 2. Suggested Patches
+    intent = f"Refactor or fix {node_name} considering it affects {len(affected_files)} components."
+    # Pass first 1-2 lines of content for context
+    file_path = target_node["id"]
+    content_snippet = session_data["code_map"].get(file_path, "Content not available")[:500]
+    
+    patches = ai_service.generate_patches(intent, content_snippet, affected_files)
+    if patches:
+        for p in patches[:1]: # Limit to 1 patch for readability in suggestions for now
+            suggestions.append(f"🛠️ SUGGESTED PATCH in {p.get('file_path')}:\n\nReplace: '{p.get('original')[:50]}...' with '{p.get('replacement')[:50]}...'\nReason: {p.get('reason')}")
+
+    return {
+        "suggestions": suggestions
+    }
+
+
+
+# ---------------------------------------------------------------------------
+# Endpoint for Chrome Extension upload  (POST /upload_temp)
+# ---------------------------------------------------------------------------
+@app.get("/session/{session_id}")
+async def get_session(session_id: str):
+    if session_id in sessions:
+        return sessions[session_id]
+    if session_id in SESSION_STORE:
+        return {"detail": "Session exists but graph hasn't been cached natively."}
+    raise HTTPException(status_code=404, detail="Session not found")
