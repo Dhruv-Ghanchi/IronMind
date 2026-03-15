@@ -1,0 +1,936 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Polyglot Analyzer — Dependency Graph</title>
+    <link rel="stylesheet" href="styles.css">
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        /* ===== Graph Canvas ===== */
+        #graph {
+            position: relative;
+            overflow: hidden;
+            cursor: grab;
+            background: #0a0e17;
+            background-image: radial-gradient(circle, #1e293b 1px, transparent 1px);
+            background-size: 20px 20px;
+        }
+        #graph:active { cursor: grabbing; }
+
+        /* ===== Layer Group Backgrounds ===== */
+        .layer-group {
+            position: absolute;
+            border-radius: 32px;
+            pointer-events: none;
+            display: flex;
+            align-items: flex-start;
+            padding: 24px;
+            font-size: 10px;
+            font-weight: 900;
+            text-transform: uppercase;
+            letter-spacing: 0.2em;
+            transition: opacity 0.3s;
+        }
+
+        /* ===== ReactFlow-Style Node Cards ===== */
+        .graph-node {
+            position: absolute;
+            padding: 12px 16px;
+            border-radius: 12px;
+            border: 1.5px solid rgba(255,255,255,0.1);
+            color: #fff;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            min-width: 200px;
+            user-select: none;
+            z-index: 2;
+            backdrop-filter: blur(12px);
+            background: rgba(15,23,42,0.8);
+        }
+        .graph-node:hover {
+            border-color: rgba(255,255,255,0.2);
+            z-index: 10;
+        }
+        .graph-node:hover .node-glow {
+            opacity: 0.12;
+        }
+
+        /* Glow effect overlay */
+        .node-glow {
+            position: absolute;
+            inset: 0;
+            border-radius: 12px;
+            opacity: 0;
+            transition: opacity 0.3s;
+            filter: blur(20px);
+            pointer-events: none;
+        }
+
+        .node-content {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            position: relative;
+            z-index: 2;
+        }
+
+        .node-icon-box {
+            padding: 8px;
+            border-radius: 8px;
+            background: rgba(255,255,255,0.05);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+        .node-icon-box svg {
+            width: 18px;
+            height: 18px;
+        }
+
+        .node-info {
+            display: flex;
+            flex-direction: column;
+            min-width: 0;
+        }
+
+        .node-name {
+            font-weight: 700;
+            font-size: 12px;
+            color: #f1f5f9;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 140px;
+        }
+
+        .node-layer-label {
+            font-size: 10px;
+            text-transform: uppercase;
+            font-weight: 900;
+            letter-spacing: -0.02em;
+            color: #64748b;
+            margin-top: 2px;
+        }
+
+        .node-meta {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            margin-top: 8px;
+            padding-top: 8px;
+            border-top: 1px solid rgba(255,255,255,0.05);
+            font-size: 9px;
+            color: #64748b;
+            position: relative;
+            z-index: 2;
+        }
+        .node-meta svg { width: 10px; height: 10px; }
+
+        /* Impacted nodes */
+        .graph-node.impacted {
+            border-color: #ef4444 !important;
+            box-shadow: 0 0 0 4px rgba(239,68,68,0.3), 0 0 20px rgba(239,68,68,0.2) !important;
+            background: rgba(127,29,29,0.4) !important;
+            transform: scale(1.08);
+            z-index: 50;
+        }
+
+        /* ===== Layer Legend Panel ===== */
+        .layer-legend {
+            position: absolute;
+            top: 16px;
+            left: 16px;
+            display: flex;
+            gap: 32px;
+            padding: 12px 20px;
+            background: rgba(0,0,0,0.6);
+            backdrop-filter: blur(20px);
+            border-radius: 12px;
+            border: 1px solid rgba(255,255,255,0.1);
+            z-index: 20;
+            box-shadow: 0 25px 50px rgba(0,0,0,0.5);
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+            transition: all 0.3s;
+            padding: 4px 12px;
+            border-radius: 8px;
+        }
+        .legend-item:hover { background: rgba(255,255,255,0.05); transform: scale(1.05); }
+        .legend-item.hidden { opacity: 0.25; }
+        .legend-item.disabled { cursor: not-allowed; filter: grayscale(1); opacity: 0.15; }
+        .legend-dot {
+            width: 12px; height: 12px;
+            border-radius: 50%;
+            border: 1px solid rgba(255,255,255,0.2);
+            box-shadow: 0 0 10px rgba(255,255,255,0.1);
+        }
+        .legend-info {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+            line-height: 1;
+        }
+        .legend-label {
+            font-size: 10px;
+            font-weight: 900;
+            text-transform: uppercase;
+            letter-spacing: -0.02em;
+            color: #e2e8f0;
+        }
+        .legend-count {
+            font-size: 8px;
+            font-weight: 900;
+            color: #8957e5;
+        }
+
+        /* ===== Top Right Badge ===== */
+        .live-badge {
+            position: absolute;
+            top: 16px;
+            right: 16px;
+            z-index: 20;
+            padding: 8px 16px;
+            background: rgba(0,0,0,0.4);
+            backdrop-filter: blur(12px);
+            border-radius: 8px;
+            font-size: 10px;
+            font-weight: 900;
+            text-transform: uppercase;
+            letter-spacing: 0.15em;
+            color: #8957e5;
+            border: 1px solid rgba(137,87,229,0.2);
+        }
+
+        /* ===== Zoom Controls ===== */
+        .zoom-controls {
+            position: absolute;
+            bottom: 16px;
+            left: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            z-index: 20;
+        }
+        .zoom-controls button {
+            width: 36px; height: 36px;
+            background: rgba(0,0,0,0.6);
+            backdrop-filter: blur(8px);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 8px;
+            color: #e2e8f0;
+            font-size: 18px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background 0.2s;
+        }
+        .zoom-controls button:hover { background: rgba(255,255,255,0.1); }
+
+        /* ===== Animated Edges ===== */
+        .edge-line {
+            fill: none;
+            stroke-width: 2;
+            opacity: 0.2;
+            transition: opacity 0.3s;
+        }
+        .edge-line.highlighted { opacity: 1; stroke-width: 2.5; }
+        .edge-line.faded { opacity: 0.05; }
+
+        /* Edge animation - dashing */
+        @keyframes dash-flow {
+            to { stroke-dashoffset: -20; }
+        }
+        .edge-line.animated {
+            stroke-dasharray: 5 5;
+            animation: dash-flow 1s linear infinite;
+        }
+    </style>
+</head>
+<body class="dashboard">
+
+    <!-- Header -->
+    <header>
+        <div class="logo" onclick="window.location.href='index.html'"><b>Polyglot</b> <span>Analyzer</span></div>
+        <div class="nav-links"><a href="https://github.com" target="_blank">View on GitHub</a></div>
+    </header>
+
+    <!-- Stats Bar -->
+    <div class="stats-bar" id="statsBar">
+        <div class="stat-item"><span>Files</span> <b id="statFiles">—</b></div>
+        <div class="stat-item"><span>Nodes</span> <b id="statNodes">—</b></div>
+        <div class="stat-item"><span>Edges</span> <b id="statEdges">—</b></div>
+        <div class="stat-item"><span>Repo</span> <b id="statRepo">—</b></div>
+        <div class="stat-item"><span>Stars</span> <b id="statStars">—</b></div>
+        <div class="stat-item"><span>Language</span> <b id="statLanguage">—</b></div>
+    </div>
+
+    <!-- Main Workspace -->
+    <div class="workspace">
+
+        <!-- Sidebar -->
+        <div class="sidebar">
+            <h2>Repository</h2>
+            <div class="info-card" id="repoCard">
+                <p>Loading...</p>
+            </div>
+
+            <h2>Layer Breakdown</h2>
+            <div class="info-card" id="layerCard">
+                <p>Analyzing...</p>
+            </div>
+
+            <h2 style="margin-top:1rem;">AI Impact Query</h2>
+            <div class="query-box">
+                <textarea id="queryInput" placeholder="Click a node, or type: What happens if I modify auth.py?"></textarea>
+                <button class="button-full" onclick="runQuery()">Analyze Impact</button>
+            </div>
+
+            <!-- Impact Results -->
+            <div id="impactResults">
+                <div id="riskBadge" class="risk-badge"></div>
+                <p class="impact-summary" id="impactSummary"></p>
+                <ul class="impact-list" id="impactBullets"></ul>
+                <p style="font-size:0.8rem; color:#8b949e; margin-bottom:8px;">
+                    <b id="affectedCount">0</b> files affected
+                </p>
+                <button class="button-full" id="genPatchesBtn" onclick="generatePatches()" style="display:none; background:#d69e2e; color:#000;">
+                    Generate Patches
+                </button>
+            </div>
+
+            <!-- Patch Panel -->
+            <div id="patchPanel">
+                <h2 style="margin-top:1rem; margin-bottom:.75rem;">Suggested Patches</h2>
+                <div id="patchCards"></div>
+                <button class="button-full" id="openPRBtn" onclick="openPR()" style="display:none;">
+                    Open GitHub PR
+                </button>
+            </div>
+        </div>
+
+        <!-- Graph -->
+        <div id="graph"></div>
+    </div>
+
+    <!-- PR Progress Overlay -->
+    <div id="prOverlay">
+        <div class="spinner" id="prSpinner"></div>
+        <div id="prStatusText">Creating branch...</div>
+        <div id="prErrorBox" style="display:none; max-width:420px; margin-top:2rem; background:rgba(248,81,73,0.1); border:1px solid #f85149; border-radius:8px; padding:1.5rem; text-align:center;">
+            <p style="color:#ff7b72; font-size:1rem; margin-bottom:.5rem; font-weight:600;">Cannot create PR</p>
+            <p id="prErrorMsg" style="color:#c9d1d9; font-size:0.85rem; line-height:1.5;">To create PRs, use a repository where your GitHub token has write access.</p>
+            <button onclick="dismissPrError()" style="margin-top:1rem; padding:8px 24px; background:#8957e5; color:white; border:none; border-radius:6px; cursor:pointer; font-weight:600;">Got it</button>
+        </div>
+    </div>
+
+    <!-- Success Modal -->
+    <div id="successModal">
+        <div class="checkmark">&#10003;</div>
+        <div class="modal-title">Pull Request Created!</div>
+        <div class="modal-body" id="modalBody">Your automated fix has been submitted.</div>
+        <a id="prLink" href="#" target="_blank" class="btn-view-pr">View PR on GitHub</a>
+        <br>
+        <button class="modal-close" onclick="document.getElementById('successModal').style.display='none'">Close</button>
+    </div>
+
+    <script>
+        // ============ CONFIG ============
+        const LAYER_ORDER = ['database', 'backend', 'api', 'frontend'];
+        const LAYER_COLORS = {
+            database:  { bg: '#3b82f6', fill: 'rgba(59,130,246,0.04)',  border: 'rgba(59,130,246,0.18)', node: 'rgba(15,23,42,0.8)', nodeBorder: '#3b82f6' },
+            backend:   { bg: '#10b981', fill: 'rgba(16,185,129,0.04)', border: 'rgba(16,185,129,0.18)', node: 'rgba(15,23,42,0.8)', nodeBorder: '#10b981' },
+            api:       { bg: '#f59e0b', fill: 'rgba(245,158,11,0.04)',  border: 'rgba(245,158,11,0.18)',  node: 'rgba(15,23,42,0.8)', nodeBorder: '#f59e0b' },
+            frontend:  { bg: '#8b5cf6', fill: 'rgba(139,92,246,0.04)', border: 'rgba(139,92,246,0.18)', node: 'rgba(15,23,42,0.8)', nodeBorder: '#8b5cf6' }
+        };
+        const LAYER_TITLES = { database: 'Database Layer', backend: 'Backend Layer', api: 'API Layer', frontend: 'Frontend Layer' };
+
+        // Layer icons (Lucide icon names)
+        const LAYER_ICONS = {
+            database: 'database',
+            backend: 'terminal',
+            api: 'globe',
+            frontend: 'file-code'
+        };
+
+        // Layout constants - matching main project
+        const NODE_W = 220, NODE_H = 80;
+        const COLS = 4, H_GAP = 120, V_GAP = 100;
+        const LAYER_PAD = 80, LAYER_GAP = 300;
+
+        // ============ STATE ============
+        let graphData = null;
+        let layoutNodes = [];
+        let layoutEdges = [];
+        let currentImpact = null;
+        let currentPatches = [];
+        let hiddenLayers = new Set();
+        let impactedNodeIds = new Set();
+
+        // Pan/Zoom state
+        let panX = 0, panY = 0, zoom = 1;
+        let isPanning = false, panStartX = 0, panStartY = 0;
+
+        // ============ INIT ============
+        const raw = sessionStorage.getItem('graphData');
+        if (!raw) {
+            window.location.href = 'index.html';
+        } else {
+            graphData = JSON.parse(raw);
+            init();
+        }
+
+        function init() {
+            const { nodes, edges, stats, repo_meta } = graphData;
+
+            // Stats bar
+            document.getElementById('statFiles').innerText = stats.total_files;
+            document.getElementById('statNodes').innerText = nodes.length;
+            document.getElementById('statEdges').innerText = edges.length;
+            document.getElementById('statRepo').innerText = repo_meta.full_name || repo_meta.repo;
+            document.getElementById('statStars').innerText = repo_meta.stars !== undefined ? repo_meta.stars : '—';
+            document.getElementById('statLanguage').innerText = repo_meta.language || '—';
+
+            // Repo info card
+            document.getElementById('repoCard').innerHTML = `
+                <p><b style="color:white">${repo_meta.full_name || repo_meta.repo}</b></p>
+                <p>${repo_meta.description || 'No description.'}</p>
+                <p><span style="color:#8b949e">Branch:</span> <b style="color:white">${repo_meta.branch}</b></p>
+                <p><span style="color:#8b949e">URL:</span> <a href="${repo_meta.github_url}" target="_blank" style="color: var(--accent-color); font-size:0.8rem">${repo_meta.github_url}</a></p>
+            `;
+
+            // Layer breakdown
+            const by = stats.by_layer;
+            document.getElementById('layerCard').innerHTML = `
+                <p><span class="badge badge-db">DB</span> <b style="color:white">${by.DATABASE || 0}</b> files</p>
+                <p><span class="badge badge-be">Backend</span> <b style="color:white">${by.BACKEND || 0}</b> files</p>
+                <p><span class="badge badge-api">API</span> <b style="color:white">${by.API || 0}</b> files</p>
+                <p><span class="badge badge-fe">Frontend</span> <b style="color:white">${by.FRONTEND || 0}</b> files</p>
+            `;
+
+            layoutEdges = edges;
+            computeLayout(nodes);
+            renderGraph();
+            setupPanZoom();
+            setTimeout(() => fitView(), 100);
+        }
+
+        // ============ LAYOUT (matching main project's hierarchical grid-per-layer) ============
+        function computeLayout(nodes) {
+            layoutNodes = [];
+            let currentY = LAYER_PAD;
+
+            LAYER_ORDER.forEach(layer => {
+                const layerNodes = nodes.filter(n => n.layer === layer);
+                if (layerNodes.length === 0) return;
+
+                const cols = Math.min(COLS, layerNodes.length);
+                const rows = Math.ceil(layerNodes.length / cols);
+
+                layerNodes.forEach((n, i) => {
+                    const col = i % cols;
+                    const row = Math.floor(i / cols);
+                    layoutNodes.push({
+                        ...n,
+                        x: LAYER_PAD + col * (NODE_W + H_GAP),
+                        y: currentY + row * (NODE_H + V_GAP),
+                        w: NODE_W,
+                        h: NODE_H
+                    });
+                });
+
+                currentY += rows * (NODE_H + V_GAP) + LAYER_GAP;
+            });
+        }
+
+        // ============ RENDER ============
+        function renderGraph() {
+            const container = document.getElementById('graph');
+            container.innerHTML = '';
+
+            const svgNS = 'http://www.w3.org/2000/svg';
+            const visibleNodes = layoutNodes.filter(n => !hiddenLayers.has(n.layer));
+            if (visibleNodes.length === 0) return;
+
+            const totalW = Math.max(...visibleNodes.map(n => n.x + n.w)) + LAYER_PAD * 2;
+            const totalH = Math.max(...visibleNodes.map(n => n.y + n.h)) + LAYER_PAD * 2;
+
+            // --- Graph inner wrapper for pan/zoom ---
+            const inner = document.createElement('div');
+            inner.className = 'graph-inner';
+            inner.style.cssText = `position:absolute; top:0; left:0; transform-origin: 0 0; transition: none;`;
+
+            // 1. Layer group backgrounds (dashed border, faint fill - matching main project)
+            LAYER_ORDER.forEach(layer => {
+                if (hiddenLayers.has(layer)) return;
+                const lnodes = visibleNodes.filter(n => n.layer === layer);
+                if (lnodes.length === 0) return;
+
+                const colors = LAYER_COLORS[layer];
+                const minX = Math.min(...lnodes.map(n => n.x)) - LAYER_PAD;
+                const minY = Math.min(...lnodes.map(n => n.y)) - LAYER_PAD;
+                const maxX = Math.max(...lnodes.map(n => n.x + n.w)) + LAYER_PAD;
+                const maxY = Math.max(...lnodes.map(n => n.y + n.h)) + LAYER_PAD;
+
+                const group = document.createElement('div');
+                group.className = 'layer-group';
+                group.style.cssText = `
+                    left:${minX}px; top:${minY}px;
+                    width:${maxX - minX}px; height:${maxY - minY}px;
+                    background:${colors.fill};
+                    border: 1px dashed ${colors.border};
+                    color: ${colors.bg};
+                `;
+                group.textContent = LAYER_TITLES[layer];
+                inner.appendChild(group);
+            });
+
+            // 2. SVG edges (animated, layer-colored, with arrow markers)
+            const svg = document.createElementNS(svgNS, 'svg');
+            svg.setAttribute('width', totalW);
+            svg.setAttribute('height', totalH);
+            svg.style.cssText = `position:absolute; top:0; left:0; pointer-events:none; z-index:1;`;
+
+            // Arrow marker definitions per layer
+            const defs = document.createElementNS(svgNS, 'defs');
+            LAYER_ORDER.forEach(layer => {
+                const marker = document.createElementNS(svgNS, 'marker');
+                marker.setAttribute('id', `arrow-${layer}`);
+                marker.setAttribute('viewBox', '0 0 10 10');
+                marker.setAttribute('refX', '10');
+                marker.setAttribute('refY', '5');
+                marker.setAttribute('markerWidth', '8');
+                marker.setAttribute('markerHeight', '8');
+                marker.setAttribute('orient', 'auto-start-reverse');
+                const path = document.createElementNS(svgNS, 'path');
+                path.setAttribute('d', 'M 0 0 L 10 5 L 0 10 z');
+                path.setAttribute('fill', LAYER_COLORS[layer].bg);
+                marker.appendChild(path);
+                defs.appendChild(marker);
+            });
+            svg.appendChild(defs);
+
+            const nodeMap = {};
+            layoutNodes.forEach(n => nodeMap[n.id] = n);
+
+            layoutEdges.forEach(edge => {
+                const src = nodeMap[edge.source];
+                const tgt = nodeMap[edge.target];
+                if (!src || !tgt) return;
+                if (hiddenLayers.has(src.layer) || hiddenLayers.has(tgt.layer)) return;
+
+                // Edge connects from bottom of source to top of target (like ReactFlow)
+                const x1 = src.x + src.w / 2;
+                const y1 = src.y + src.h;
+                const x2 = tgt.x + tgt.w / 2;
+                const y2 = tgt.y;
+                const midY = (y1 + y2) / 2;
+
+                const path = document.createElementNS(svgNS, 'path');
+                path.setAttribute('d', `M ${x1} ${y1} C ${x1} ${midY}, ${x2} ${midY}, ${x2} ${y2}`);
+                path.setAttribute('stroke', LAYER_COLORS[src.layer]?.bg || '#475569');
+                path.setAttribute('marker-end', `url(#arrow-${src.layer})`);
+                path.className.baseVal = 'edge-line animated';
+                path.dataset.source = edge.source;
+                path.dataset.target = edge.target;
+
+                // Impact-based opacity
+                if (impactedNodeIds.size > 0) {
+                    if (impactedNodeIds.has(edge.source) || impactedNodeIds.has(edge.target)) {
+                        path.style.opacity = '1';
+                    } else {
+                        path.style.opacity = '0.05';
+                    }
+                }
+
+                svg.appendChild(path);
+            });
+
+            inner.appendChild(svg);
+
+            // 3. Node cards (ReactFlow FileNode style - glassmorphism with icons and glow)
+            visibleNodes.forEach(n => {
+                const colors = LAYER_COLORS[n.layer] || LAYER_COLORS.BACKEND;
+                const isImpacted = impactedNodeIds.has(n.id);
+                const iconName = LAYER_ICONS[n.layer] || 'file-code';
+
+                const el = document.createElement('div');
+                el.className = 'graph-node' + (isImpacted ? ' impacted' : '');
+                el.dataset.id = n.id;
+                el.style.cssText = `
+                    left:${n.x}px; top:${n.y}px; width:${n.w}px;
+                    border-color: ${isImpacted ? '#ef4444' : 'rgba(255,255,255,0.1)'};
+                `;
+
+                el.innerHTML = `
+                    <div class="node-glow" style="background:${colors.bg}"></div>
+                    <div class="node-content">
+                        <div class="node-icon-box" style="color:${colors.bg}">
+                            <i data-lucide="${iconName}"></i>
+                        </div>
+                        <div class="node-info">
+                            <div class="node-name">${n.name}</div>
+                            <div class="node-layer-label">${n.layer}</div>
+                        </div>
+                    </div>
+                    ${n.lines ? `
+                    <div class="node-meta">
+                        <i data-lucide="hash"></i>
+                        <span>${n.lines} lines</span>
+                    </div>` : ''}
+                `;
+
+                el.onclick = () => onNodeClick(n);
+                el.onmouseenter = () => highlightEdges(n.id, true);
+                el.onmouseleave = () => highlightEdges(n.id, false);
+                inner.appendChild(el);
+            });
+
+            container.appendChild(inner);
+
+            // 4. Layer Legend Panel (outside inner so it stays fixed)
+            const legend = document.createElement('div');
+            legend.className = 'layer-legend';
+            LAYER_ORDER.forEach(layer => {
+                const count = layoutNodes.filter(n => n.layer === layer).length;
+                const isHidden = hiddenLayers.has(layer);
+                const item = document.createElement('div');
+                item.className = 'legend-item' + (isHidden ? ' hidden' : '') + (count === 0 ? ' disabled' : '');
+                item.innerHTML = `
+                    <div class="legend-dot" style="background:${isHidden ? '#334155' : LAYER_COLORS[layer].bg}; box-shadow: 0 0 10px rgba(255,255,255,0.1)"></div>
+                    <div class="legend-info">
+                        <div class="legend-label">${LAYER_TITLES[layer]}</div>
+                        <div class="legend-count">${count} OBJECTS</div>
+                    </div>
+                `;
+                if (count > 0) {
+                    item.onclick = () => toggleLayer(layer);
+                }
+                legend.appendChild(item);
+            });
+            container.appendChild(legend);
+
+            // 5. Live Architect badge (top right, matching main project)
+            const liveBadge = document.createElement('div');
+            liveBadge.className = 'live-badge';
+            liveBadge.textContent = 'Live Architect';
+            container.appendChild(liveBadge);
+
+            // 6. Zoom controls
+            const zoomCtrl = document.createElement('div');
+            zoomCtrl.className = 'zoom-controls';
+            zoomCtrl.innerHTML = `
+                <button onclick="zoomIn()">+</button>
+                <button onclick="zoomOut()">&minus;</button>
+                <button onclick="fitView()" title="Fit view" style="font-size:14px;">&#8862;</button>
+            `;
+            container.appendChild(zoomCtrl);
+
+            // Initialize Lucide icons
+            if (window.lucide) {
+                lucide.createIcons();
+            }
+
+            applyTransform();
+        }
+
+        function highlightEdges(nodeId, on) {
+            document.querySelectorAll('.edge-line').forEach(el => {
+                if (el.dataset.source === nodeId || el.dataset.target === nodeId) {
+                    el.classList.toggle('highlighted', on);
+                }
+            });
+        }
+
+        function onNodeClick(node) {
+            document.getElementById('queryInput').value = `What happens if I modify ${node.name}?`;
+        }
+
+        function toggleLayer(layer) {
+            if (hiddenLayers.has(layer)) hiddenLayers.delete(layer);
+            else hiddenLayers.add(layer);
+            renderGraph();
+            applyTransform();
+        }
+
+        // ============ PAN / ZOOM ============
+        function setupPanZoom() {
+            const el = document.getElementById('graph');
+            el.addEventListener('mousedown', e => {
+                if (e.target.closest('.graph-node, .layer-legend, .zoom-controls, .live-badge')) return;
+                isPanning = true;
+                panStartX = e.clientX - panX;
+                panStartY = e.clientY - panY;
+            });
+            window.addEventListener('mousemove', e => {
+                if (!isPanning) return;
+                panX = e.clientX - panStartX;
+                panY = e.clientY - panStartY;
+                applyTransform();
+            });
+            window.addEventListener('mouseup', () => isPanning = false);
+            el.addEventListener('wheel', e => {
+                e.preventDefault();
+                const delta = e.deltaY > 0 ? 0.9 : 1.1;
+                const rect = el.getBoundingClientRect();
+                const mx = e.clientX - rect.left;
+                const my = e.clientY - rect.top;
+                panX = mx - delta * (mx - panX);
+                panY = my - delta * (my - panY);
+                zoom *= delta;
+                zoom = Math.max(0.01, Math.min(4, zoom));
+                applyTransform();
+            }, { passive: false });
+        }
+
+        function applyTransform() {
+            const inner = document.querySelector('.graph-inner');
+            if (inner) {
+                inner.style.transform = `translate(${panX}px,${panY}px) scale(${zoom})`;
+            }
+        }
+
+        function zoomIn() { zoom = Math.min(4, zoom * 1.2); applyTransform(); }
+        function zoomOut() { zoom = Math.max(0.01, zoom * 0.8); applyTransform(); }
+
+        function fitView() {
+            const container = document.getElementById('graph');
+            const cw = container.clientWidth;
+            const ch = container.clientHeight;
+            const visibleNodes = layoutNodes.filter(n => !hiddenLayers.has(n.layer));
+            if (visibleNodes.length === 0) return;
+
+            const maxX = Math.max(...visibleNodes.map(n => n.x + n.w)) + LAYER_PAD * 2;
+            const maxY = Math.max(...visibleNodes.map(n => n.y + n.h)) + LAYER_PAD * 2;
+            const scaleX = cw / maxX;
+            const scaleY = ch / maxY;
+            zoom = Math.min(scaleX, scaleY, 1) * 0.85;
+            panX = (cw - maxX * zoom) / 2;
+            panY = (ch - maxY * zoom) / 2;
+            applyTransform();
+        }
+
+        // ============ QUERY ============
+        async function runQuery() {
+            const question = document.getElementById('queryInput').value.trim();
+            if (!question) return;
+
+            const queryBtn = document.querySelector('.query-box .button-full');
+            queryBtn.innerText = 'Analyzing...';
+            queryBtn.disabled = true;
+
+            try {
+                const res = await fetch('http://localhost:8001/api/query', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        question: question,
+                        file_name: '',
+                        repo_meta: graphData.repo_meta
+                    })
+                });
+                const data = await res.json();
+                currentImpact = data;
+                renderImpact(data);
+            } catch (e) {
+                document.getElementById('impactResults').style.display = 'block';
+                document.getElementById('riskBadge').className = 'risk-badge risk-medium';
+                document.getElementById('riskBadge').innerText = 'ERROR';
+                document.getElementById('impactSummary').innerText = 'Query failed: ' + e.message;
+                document.getElementById('impactBullets').innerHTML = '';
+            } finally {
+                queryBtn.innerText = 'Analyze Impact';
+                queryBtn.disabled = false;
+            }
+        }
+
+        function renderImpact(data) {
+            const impact = data.impact;
+            if (!impact) return;
+
+            const panel = document.getElementById('impactResults');
+            panel.style.display = 'block';
+
+            const badge = document.getElementById('riskBadge');
+            const level = (impact.risk_level || 'UNKNOWN').toLowerCase();
+            badge.className = `risk-badge risk-${level}`;
+            badge.innerText = `${impact.risk_level} — Score ${impact.risk_score}/10`;
+
+            document.getElementById('impactSummary').innerText = impact.summary || '';
+            const bullets = document.getElementById('impactBullets');
+            bullets.innerHTML = (impact.bullets || []).map(b => `<li>${b}</li>`).join('');
+
+            document.getElementById('affectedCount').innerText = (data.affected_files || []).length;
+            document.getElementById('genPatchesBtn').style.display = 'block';
+
+            // Update impacted node IDs and re-render graph with impact highlighting
+            impactedNodeIds = new Set((data.affected_files || []).map(f => f.path || f.name));
+            renderGraph();
+            applyTransform();
+
+            // Zoom to impacted nodes if any
+            if (impactedNodeIds.size > 0) {
+                const impactedLayoutNodes = layoutNodes.filter(n => impactedNodeIds.has(n.id));
+                if (impactedLayoutNodes.length > 0) {
+                    fitViewToNodes(impactedLayoutNodes);
+                }
+            }
+
+            document.getElementById('patchPanel').style.display = 'none';
+            document.getElementById('patchCards').innerHTML = '';
+            document.getElementById('openPRBtn').style.display = 'none';
+            currentPatches = [];
+        }
+
+        function fitViewToNodes(targetNodes) {
+            const container = document.getElementById('graph');
+            const cw = container.clientWidth;
+            const ch = container.clientHeight;
+            if (targetNodes.length === 0) return;
+
+            const minX = Math.min(...targetNodes.map(n => n.x));
+            const minY = Math.min(...targetNodes.map(n => n.y));
+            const maxX = Math.max(...targetNodes.map(n => n.x + n.w));
+            const maxY = Math.max(...targetNodes.map(n => n.y + n.h));
+
+            const contentW = maxX - minX + LAYER_PAD * 4;
+            const contentH = maxY - minY + LAYER_PAD * 4;
+            const scaleX = cw / contentW;
+            const scaleY = ch / contentH;
+            zoom = Math.min(scaleX, scaleY, 1.5) * 0.8;
+
+            const cx = (minX + maxX) / 2;
+            const cy = (minY + maxY) / 2;
+            panX = cw / 2 - cx * zoom;
+            panY = ch / 2 - cy * zoom;
+            applyTransform();
+        }
+
+        // ============ PATCHES ============
+        async function generatePatches() {
+            const btn = document.getElementById('genPatchesBtn');
+            btn.innerText = 'Generating patches...';
+            btn.disabled = true;
+
+            try {
+                const res = await fetch('http://localhost:8001/api/generate-patches', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        intent: document.getElementById('queryInput').value,
+                        affected_files: currentImpact.affected_files || [],
+                        repo_meta: graphData.repo_meta
+                    })
+                });
+                const data = await res.json();
+                currentPatches = data.patches || [];
+                renderPatches(currentPatches);
+            } catch (e) {
+                document.getElementById('patchPanel').style.display = 'block';
+                document.getElementById('patchCards').innerHTML = '<p style="color:#ff7b72; font-size:0.85rem;">Patch generation failed: ' + e.message + '</p>';
+            } finally {
+                btn.innerText = 'Generate Patches';
+                btn.disabled = false;
+            }
+        }
+
+        function renderPatches(patches) {
+            const panel = document.getElementById('patchPanel');
+            const cards = document.getElementById('patchCards');
+            panel.style.display = 'block';
+
+            if (!patches.length) {
+                cards.innerHTML = '<p style="color:#8b949e; font-size:0.85rem;">No patches generated. The AI may need more context.</p>';
+                return;
+            }
+
+            cards.innerHTML = patches.map(p => `
+                <div class="patch-card">
+                    <div class="path">${p.file_path}</div>
+                    <div class="diff">
+                        <del>- ${(p.original || '').substring(0, 80)}</del>
+                        <ins>+ ${(p.replacement || '').substring(0, 80)}</ins>
+                    </div>
+                    <p style="font-size:0.75rem; color:#8b949e; margin-top:4px;">${p.reason || ''}</p>
+                </div>
+            `).join('');
+
+            document.getElementById('openPRBtn').style.display = 'block';
+        }
+
+        // ============ PR ============
+        async function openPR() {
+            const overlay = document.getElementById('prOverlay');
+            const statusEl = document.getElementById('prStatusText');
+            overlay.style.display = 'flex';
+
+            const steps = ['Creating branch...', 'Committing changes...', 'Opening Pull Request...'];
+            let step = 0;
+            const interval = setInterval(() => {
+                step++;
+                if (step < steps.length) statusEl.innerText = steps[step];
+                else clearInterval(interval);
+            }, 1500);
+
+            try {
+                const res = await fetch('http://localhost:8001/api/create-pr', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        patches: currentPatches,
+                        intent: document.getElementById('queryInput').value,
+                        repo_meta: graphData.repo_meta
+                    })
+                });
+
+                if (!res.ok) {
+                    const err = await res.json();
+                    throw new Error(err.detail || 'PR creation failed');
+                }
+
+                const data = await res.json();
+                clearInterval(interval);
+                overlay.style.display = 'none';
+                showPRSuccess(data);
+
+            } catch (e) {
+                clearInterval(interval);
+                document.getElementById('prSpinner').style.display = 'none';
+                document.getElementById('prStatusText').style.display = 'none';
+                const errBox = document.getElementById('prErrorBox');
+                const errMsg = e.message || '';
+                if (errMsg.includes('push access') || errMsg.includes('Cannot create branch')) {
+                    document.getElementById('prErrorMsg').innerText = "You don't have push access to this repository. Try with your own GitHub repo.";
+                } else {
+                    document.getElementById('prErrorMsg').innerText = 'To create PRs, use a repository where your GitHub token has write access.';
+                }
+                errBox.style.display = 'block';
+            }
+        }
+
+        function showPRSuccess(data) {
+            document.getElementById('modalBody').innerHTML = `
+                <b>${data.files_count} file(s) changed</b> on branch <code>${data.branch}</code><br><br>
+                PR #${data.pr_number} is ready for review.
+            `;
+            document.getElementById('prLink').href = data.pr_url;
+            document.getElementById('successModal').style.display = 'block';
+        }
+
+        function dismissPrError() {
+            document.getElementById('prOverlay').style.display = 'none';
+            document.getElementById('prSpinner').style.display = 'block';
+            document.getElementById('prStatusText').style.display = 'block';
+            document.getElementById('prStatusText').innerText = 'Creating branch...';
+            document.getElementById('prErrorBox').style.display = 'none';
+        }
+    </script>
+</body>
+</html>

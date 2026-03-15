@@ -53,7 +53,7 @@ const getLayoutedElements = (nodes: Node[], edges: Edge[]) => {
   const layoutedNodes: Node[] = [];
 
   layers.forEach((ly) => {
-    const nodesInLayer = nodes.filter((n) => n.data?.layer === ly);
+    const nodesInLayer = nodes.filter((n) => n.data?.layer?.toLowerCase() === ly);
     if (nodesInLayer.length === 0) return;
 
     // 1. Identify Root Nodes (Files or Orphan Symbols)
@@ -113,7 +113,7 @@ const getLayoutedElements = (nodes: Node[], edges: Edge[]) => {
 
   // 3. Create Static Layer Group Backgrounds
   const layerGroups: Node[] = layers.map(ly => {
-    const lyNodes = layoutedNodes.filter(n => n.data?.layer === ly);
+    const lyNodes = layoutedNodes.filter(n => n.data?.layer?.toLowerCase() === ly);
     if (lyNodes.length === 0) return null;
 
     const minX = Math.min(...lyNodes.map(n => n.position.x)) - LAYER_PADDING;
@@ -161,7 +161,7 @@ export const DependencyGraph: React.FC<DependencyGraphProps> = ({
 
   // 1. Filter Nodes/Edges based on layer visibility
   const filteredNodes = useMemo(() => {
-    return rawNodes.filter(n => !hiddenLayers.includes(n.data?.layer));
+    return rawNodes.filter(n => !hiddenLayers.includes(n.data?.layer?.toLowerCase()));
   }, [rawNodes, hiddenLayers]);
 
   const filteredEdges = useMemo(() => {
@@ -170,8 +170,8 @@ export const DependencyGraph: React.FC<DependencyGraphProps> = ({
       const sourceNode = nodeMap.get(edge.source);
       const targetNode = nodeMap.get(edge.target);
       return (
-        sourceNode && !hiddenLayers.includes(sourceNode.data?.layer) &&
-        targetNode && !hiddenLayers.includes(targetNode.data?.layer)
+        sourceNode && !hiddenLayers.includes(sourceNode.data?.layer?.toLowerCase()) &&
+        targetNode && !hiddenLayers.includes(targetNode.data?.layer?.toLowerCase())
       );
     });
   }, [rawEdges, rawNodes, hiddenLayers]);
@@ -201,7 +201,8 @@ export const DependencyGraph: React.FC<DependencyGraphProps> = ({
       .filter(edge => edge.label !== 'CONTAINS')
       .map((edge) => {
         const sourceNode = rawNodes.find(n => n.id === edge.source);
-        const edgeColor = sourceNode?.data?.layer ? layerColor[sourceNode.data.layer] : '#475569';
+        const sourceLayer = sourceNode?.data?.layer?.toLowerCase();
+        const edgeColor = sourceLayer ? layerColor[sourceLayer] : '#475569';
         
         return {
           ...edge,
@@ -222,7 +223,7 @@ export const DependencyGraph: React.FC<DependencyGraphProps> = ({
   const stats = useMemo(() => {
     const counts: Record<string, number> = { database: 0, backend: 0, api: 0, frontend: 0 };
     rawNodes.forEach(n => {
-      const layer = n.data?.layer;
+      const layer = n.data?.layer?.toLowerCase();
       if (layer && layer in counts) counts[layer]++;
     });
     return counts;

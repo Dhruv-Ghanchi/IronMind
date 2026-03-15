@@ -1,17 +1,17 @@
 === Analysis Backend Debug Log ===
-[00:24:29] Walking directory: C:\Users\EGOIST\AppData\Local\Temp\repo_upload_9c6613a1a0164a1889d50562d8742a06_woufv74l
-[00:24:29] Walking directory: C:\Users\EGOIST\AppData\Local\Temp\repo_upload_9c6613a1a0164a1889d50562d8742a06_woufv74l\notes
-[00:24:29] Checking file: README.md in C:\Users\EGOIST\AppData\Local\Temp\repo_upload_9c6613a1a0164a1889d50562d8742a06_woufv74l\notes
-[00:24:29] ACCEPTED: README.md (Path: C:\Users\EGOIST\AppData\Local\Temp\repo_upload_9c6613a1a0164a1889d50562d8742a06_woufv74l\notes\README.md)
-[00:24:29] Walking directory: C:\Users\EGOIST\AppData\Local\Temp\repo_upload_9c6613a1a0164a1889d50562d8742a06_woufv74l\notes\backend
-[00:24:29] Checking file: main.py in C:\Users\EGOIST\AppData\Local\Temp\repo_upload_9c6613a1a0164a1889d50562d8742a06_woufv74l\notes\backend
-[00:24:29] ACCEPTED: main.py (Path: C:\Users\EGOIST\AppData\Local\Temp\repo_upload_9c6613a1a0164a1889d50562d8742a06_woufv74l\notes\backend\main.py)
-[00:24:29] Checking file: requirements.txt in C:\Users\EGOIST\AppData\Local\Temp\repo_upload_9c6613a1a0164a1889d50562d8742a06_woufv74l\notes\backend
-[00:24:29] ACCEPTED: requirements.txt (Path: C:\Users\EGOIST\AppData\Local\Temp\repo_upload_9c6613a1a0164a1889d50562d8742a06_woufv74l\notes\backend\requirements.txt)
-[00:24:29] Walking directory: C:\Users\EGOIST\AppData\Local\Temp\repo_upload_9c6613a1a0164a1889d50562d8742a06_woufv74l\notes\frontend
-[00:24:29] Checking file: index.html in C:\Users\EGOIST\AppData\Local\Temp\repo_upload_9c6613a1a0164a1889d50562d8742a06_woufv74l\notes\frontend
-[00:24:29] ACCEPTED: index.html (Path: C:\Users\EGOIST\AppData\Local\Temp\repo_upload_9c6613a1a0164a1889d50562d8742a06_woufv74l\notes\frontend\index.html)
-[00:24:29] Walking directory: C:\Users\EGOIST\AppData\Local\Temp\repo_upload_9c6613a1a0164a1889d50562d8742a06_woufv74l\notes\{backend,frontend}
+[06:08:43] Walking directory: C:\Users\EGOIST\AppData\Local\Temp\repo_upload_f391ac027bdd45c8b258357138ff12a2_kd200f7k
+[06:08:43] Walking directory: C:\Users\EGOIST\AppData\Local\Temp\repo_upload_f391ac027bdd45c8b258357138ff12a2_kd200f7k\notes
+[06:08:43] Checking file: README.md in C:\Users\EGOIST\AppData\Local\Temp\repo_upload_f391ac027bdd45c8b258357138ff12a2_kd200f7k\notes
+[06:08:43] ACCEPTED: README.md (Path: C:\Users\EGOIST\AppData\Local\Temp\repo_upload_f391ac027bdd45c8b258357138ff12a2_kd200f7k\notes\README.md)
+[06:08:43] Walking directory: C:\Users\EGOIST\AppData\Local\Temp\repo_upload_f391ac027bdd45c8b258357138ff12a2_kd200f7k\notes\backend
+[06:08:43] Checking file: main.py in C:\Users\EGOIST\AppData\Local\Temp\repo_upload_f391ac027bdd45c8b258357138ff12a2_kd200f7k\notes\backend
+[06:08:43] ACCEPTED: main.py (Path: C:\Users\EGOIST\AppData\Local\Temp\repo_upload_f391ac027bdd45c8b258357138ff12a2_kd200f7k\notes\backend\main.py)
+[06:08:43] Checking file: requirements.txt in C:\Users\EGOIST\AppData\Local\Temp\repo_upload_f391ac027bdd45c8b258357138ff12a2_kd200f7k\notes\backend
+[06:08:43] ACCEPTED: requirements.txt (Path: C:\Users\EGOIST\AppData\Local\Temp\repo_upload_f391ac027bdd45c8b258357138ff12a2_kd200f7k\notes\backend\requirements.txt)
+[06:08:43] Walking directory: C:\Users\EGOIST\AppData\Local\Temp\repo_upload_f391ac027bdd45c8b258357138ff12a2_kd200f7k\notes\frontend
+[06:08:43] Checking file: index.html in C:\Users\EGOIST\AppData\Local\Temp\repo_upload_f391ac027bdd45c8b258357138ff12a2_kd200f7k\notes\frontend
+[06:08:43] ACCEPTED: index.html (Path: C:\Users\EGOIST\AppData\Local\Temp\repo_upload_f391ac027bdd45c8b258357138ff12a2_kd200f7k\notes\frontend\index.html)
+[06:08:43] Walking directory: C:\Users\EGOIST\AppData\Local\Temp\repo_upload_f391ac027bdd45c8b258357138ff12a2_kd200f7k\notes\{backend,frontend}
 FILE FOUND: notes/README.md | LAYERS: backend | PRIMARY: backend
 FILE FOUND: notes/backend/main.py | LAYERS: database, backend, api | PRIMARY: database
 FILE FOUND: notes/backend/requirements.txt | LAYERS: backend | PRIMARY: backend

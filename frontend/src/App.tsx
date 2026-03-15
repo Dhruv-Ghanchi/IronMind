@@ -8,7 +8,7 @@ import { DependencyGraph } from './graph/DependencyGraph';
 import GooeyNav from './components/GooeyNav';
 import ClickSpark from './components/ClickSpark';
 import GradientText from './components/GradientText';
-import { Search, ShieldAlert, Layers, Loader2, Sparkles } from 'lucide-react';
+import { Search, ShieldAlert, Layers, Loader2, Sparkles, Star, GitBranch, Code } from 'lucide-react';
 import { uploadRepo, analyzeImpact, getGraph, queryNL, suggestFix } from './api/client';
 import { ReactFlowProvider, type Node, type Edge } from 'reactflow';
 
@@ -65,10 +65,16 @@ function App() {
   const [queryInput, setQueryInput] = useState('');
   const [queryResult, setQueryResult] = useState<string | null>(null);
   const [isQueryLoading, setIsQueryLoading] = useState(false);
+  const [repoMeta, setRepoMeta] = useState<any>(null);
+  const [isGithubRepo, setIsGithubRepo] = useState(false);
 
   const handleUpload = async (file: File) => {
     setIsUploading(true);
     try {
+      // Reset GitHub-specific state for ZIP uploads
+      setIsGithubRepo(false);
+      setRepoMeta(null);
+
       const uploadData = await uploadRepo(file);
       const id = uploadData.analysis_id;
       setAnalysisId(id);
@@ -90,6 +96,43 @@ function App() {
     } catch (error) {
       console.error("Upload failed", error);
       alert("Upload failed. Check console for errors.");
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const handleGithubUpload = async (data: {
+    analysisId: string;
+    nodes: any[];
+    edges: any[];
+    repoMeta: any;
+    filesParsed: number;
+    filesSkipped: number;
+    githubToken: string;
+  }) => {
+    setIsUploading(true);
+    try {
+      // Store repo metadata
+      setRepoMeta(data.repoMeta);
+      setIsGithubRepo(true);
+
+      // Set graph data
+      setNodes(data.nodes);
+      setEdges(data.edges);
+
+      // Set counts
+      setFilesParsed(data.filesParsed);
+      setFilesSkipped(data.filesSkipped);
+      setNodesCount(data.nodes.length);
+      setEdgesCount(data.edges.length);
+
+      // Store analysis ID from backend
+      setAnalysisId(data.analysisId);
+
+      setIsUploaded(true);
+    } catch (error) {
+      console.error("GitHub upload failed", error);
+      alert("GitHub analysis failed. Check console for errors.");
     } finally {
       setIsUploading(false);
     }
@@ -140,6 +183,8 @@ function App() {
       setIsQueryLoading(false);
     }
   };
+
+
 
 
   return (
@@ -199,7 +244,11 @@ function App() {
                 Upload your repository and visualize how changes propagate from SQL columns to React components.
               </p>
             </div>
-            <UploadZone onUpload={handleUpload} isUploading={isUploading} />
+            <UploadZone
+              onUpload={handleUpload}
+              onGithubAnalyze={handleGithubUpload}
+              isUploading={isUploading}
+            />
           </div>
         ) : (
           <div className="space-y-8 animate-fade-in">
@@ -209,6 +258,45 @@ function App() {
               nodesCount={nodesCount}
               edgesCount={edgesCount}
             />
+
+            {/* Repo Meta Bar (GitHub only) */}
+            {isGithubRepo && repoMeta && (
+              <div className="bg-[#1a1a2e] border border-white/10 rounded-lg px-5 py-2 flex items-center justify-between text-[13px]">
+                <div className="flex items-center gap-6">
+                  <div className="flex items-center gap-2">
+                    <GitBranch className="w-4 h-4 text-slate-400" />
+                    <span className="text-slate-300 font-medium">{repoMeta.full_name || `${repoMeta.owner}/${repoMeta.repo}`}</span>
+                  </div>
+                  {repoMeta.stars !== undefined && (
+                    <div className="flex items-center gap-1.5">
+                      <Star className="w-3.5 h-3.5 text-yellow-500" />
+                      <span className="text-slate-400">{repoMeta.stars}</span>
+                    </div>
+                  )}
+                  {repoMeta.language && (
+                    <div className="flex items-center gap-1.5">
+                      <Code className="w-3.5 h-3.5 text-slate-400" />
+                      <span className="text-slate-400">Language: {repoMeta.language}</span>
+                    </div>
+                  )}
+                  {repoMeta.branch && (
+                    <div className="flex items-center gap-1.5">
+                      <GitBranch className="w-3.5 h-3.5 text-slate-400" />
+                      <span className="text-slate-400">Branch: {repoMeta.branch}</span>
+                    </div>
+                  )}
+                </div>
+                <a
+                  href={`https://github.com/${repoMeta.owner}/${repoMeta.repo}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-brand-400 hover:text-brand-300 transition-colors flex items-center gap-1"
+                >
+                  View on GitHub →
+                </a>
+              </div>
+            )}
+
             <div className="space-y-8">
               {/* Full Width Graph Area */}
               <div className="w-full h-[600px] glass rounded-3xl overflow-hidden border border-white/10">
@@ -223,7 +311,7 @@ function App() {
               </div>
 
               {/* Bottom Split Section */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-stretch">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-stretch">
                 {/* Section A: Action Center */}
                 <div className="glass p-6 rounded-2xl flex flex-col border border-white/10 relative overflow-hidden h-full">
                   <div className="absolute -top-10 -right-10 w-32 h-32 bg-brand-500/10 blur-[60px] rounded-full animate-pulse" />

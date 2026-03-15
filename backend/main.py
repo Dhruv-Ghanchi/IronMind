@@ -76,8 +76,10 @@ class ImpactRequest(BaseModel):
     node_id: str
 
 class QueryRequest(BaseModel):
-    analysis_id: str
     question: str
+    analysis_id: str = None
+    file_name: str = None
+    repo_meta: dict = None
 
 class SuggestFixRequest(BaseModel):
     analysis_id: str
@@ -640,9 +642,13 @@ async def analyze_impact(body: ImpactRequest):
 # ---------------------------------------------------------------------------
 @app.post("/query")
 async def natural_language_query(body: QueryRequest):
-    """Smarter query handling with Neo4j and content-aware search."""
-    if body.analysis_id not in SESSION_STORE:
-        raise HTTPException(status_code=404, detail="analysis_id not found. Upload a repo first.")
+    print(f"DEBUG: Received query request: {body}")
+    analysis_id = body.analysis_id or (body.repo_meta and body.repo_meta.get("analysis_id"))
+    
+    if analysis_id not in SESSION_STORE:
+        # Fallback to general AI answer if no graph context exists
+        answer = ai_service.answer_query(body.question, "Context: General codebase question.")
+        return {"answer": answer, "impact": None}
 
     session_data = SESSION_STORE[body.analysis_id]
     code_map = session_data["code_map"]
